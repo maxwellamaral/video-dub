@@ -10,9 +10,6 @@ wheels/
 .venv
 
 # Arquivos de saída
-video_dublado.mp4
-legenda_original.srt
-legenda_traduzida.srt
-audio_extraido.wav
-audio_traduzido.wav
-video_entrada.mp4
+*.mp4
+*.srt
+*.wav
