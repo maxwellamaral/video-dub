@@ -669,9 +669,44 @@ def executar_pipeline_completa(
     
     return True
 
-# ============================================================================
-# MAIN: EXEMPLO DE USO
-# ============================================================================
+def obter_configuracao_usuario():
+    """Exibe um menu para o usuário escolher os idiomas de dublagem."""
+    opcoes = [
+        {"nome": "Inglês para Português (Brasil)", "origem": "eng_Latn", "destino": "por_Latn", "voz": "por"},
+        {"nome": "Português para Inglês", "origem": "por_Latn", "destino": "eng_Latn", "voz": "eng"},
+        {"nome": "Espanhol para Português (Brasil)", "origem": "spa_Latn", "destino": "por_Latn", "voz": "por"},
+        {"nome": "Francês para Português (Brasil)", "origem": "fra_Latn", "destino": "por_Latn", "voz": "por"},
+        {"nome": "Alemão para Português (Brasil)", "origem": "deu_Latn", "destino": "por_Latn", "voz": "por"},
+        {"nome": "Personalizado (Inserir códigos manuais)", "origem": "manual", "destino": "manual", "voz": "manual"},
+        {"nome": "Sair", "origem": "exit", "destino": "exit", "voz": "exit"}
+    ]
+
+    print("\n" + "="*50)
+    print("       MENU DE CONFIGURAÇÃO DE DUBLAGEM")
+    print("="*50)
+    for i, opcao in enumerate(opcoes, 1):
+        print(f"{i}. {opcao['nome']}")
+    print("="*50)
+
+    try:
+        escolha = int(input("\nEscolha uma opção (padrão 1): ") or "1")
+        if 1 <= escolha <= len(opcoes):
+            config = opcoes[escolha-1]
+            
+            if config["origem"] == "exit":
+                return None, None, None
+            
+            if config["origem"] == "manual":
+                origem = input("Código NLLB Origem (ex: eng_Latn): ") or "eng_Latn"
+                destino = input("Código NLLB Destino (ex: por_Latn): ") or "por_Latn"
+                voz = input("Código MMS-TTS Voz (ex: por): ") or "por"
+                return origem, destino, voz
+                
+            return config["origem"], config["destino"], config["voz"]
+    except ValueError:
+        pass
+
+    return "eng_Latn", "por_Latn", "por"
 
 if __name__ == "__main__":
     # Certifique-se de que seu vídeo existe
@@ -679,12 +714,19 @@ if __name__ == "__main__":
         print(f"✗ Arquivo não encontrado: {VIDEO_ENTRADA}")
         print("  Coloque seu vídeo no mesmo diretório e renomeie para 'video_entrada.mp4'")
     else:
+        # Obter idiomas do usuário
+        origem, destino, voz = obter_configuracao_usuario()
+        
+        if origem is None:
+            print("\n👋 Saindo...")
+            exit()
+        
         # Executar pipeline completa
         sucesso = executar_pipeline_completa(
             caminho_video=VIDEO_ENTRADA,
-            idioma_origem="eng_Latn",   # Inglês (NLLB)
-            idioma_destino="por_Latn",  # Português (NLLB)
-            idioma_voz="por"             # Português (MMS-TTS)
+            idioma_origem=origem,
+            idioma_destino=destino,
+            idioma_voz=voz
         )
         
         if sucesso:
