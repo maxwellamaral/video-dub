@@ -31,12 +31,18 @@ IDIOMA_ORIGEM = "eng_Latn"      # Inglês
 IDIOMA_DESTINO = "por_Latn"    # Português
 
 # Caminhos
-VIDEO_ENTRADA = "video_entrada.mp4"      # Seu vídeo
-AUDIO_EXTRAIDO = "audio_extraido.wav"
-AUDIO_TRADUZIDO = "audio_traduzido.wav"
-VIDEO_SAIDA = "video_dublado.mp4"
-LEGENDA_ORIGINAL = "legenda_original.srt"   # Legenda original com timestamps
-LEGENDA_TRADUZIDA = "legenda_traduzida.srt" # Legenda traduzida com timestamps
+INPUT_DIR = "input"
+os.makedirs(INPUT_DIR, exist_ok=True)
+VIDEO_ENTRADA = os.path.join(INPUT_DIR, "video_entrada.mp4")      # Seu vídeo
+
+OUTPUT_DIR = "output"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+AUDIO_EXTRAIDO = os.path.join(OUTPUT_DIR, "audio_extraido.wav")
+AUDIO_TRADUZIDO = os.path.join(OUTPUT_DIR, "audio_traduzido.wav")
+VIDEO_SAIDA = os.path.join(OUTPUT_DIR, "video_dublado.mp4")
+LEGENDA_ORIGINAL = os.path.join(OUTPUT_DIR, "legenda_original.srt")
+LEGENDA_TRADUZIDA = os.path.join(OUTPUT_DIR, "legenda_traduzida.srt")
 
 # ============================================================================
 # ETAPA 1: EXTRAÇÃO DE ÁUDIO DO VÍDEO (usando ffmpeg)
@@ -498,7 +504,7 @@ def dublar_com_ajuste_video(caminho_video, segmentos, idioma_voz="por", saida_vi
             duracao_audio = 0.5 
             audio_clip = None
         else:
-            temp_wav = f"temp_seg_{i}.wav"
+            temp_wav = os.path.join(OUTPUT_DIR, f"temp_seg_{i}.wav")
             import soundfile as sf
             sf.write(temp_wav, audio_data, int(sample_rate))
             audio_clip = AudioFileClip(temp_wav)
@@ -546,7 +552,7 @@ def dublar_com_ajuste_video(caminho_video, segmentos, idioma_voz="por", saida_vi
         # Salvar nova legenda sincronizada
         try:
             srt_final = segmentos_para_srt(novos_segmentos_legenda)
-            nome_legenda_final = "legenda_final_sincronizada.srt"
+            nome_legenda_final = os.path.join(OUTPUT_DIR, "legenda_final_sincronizada.srt")
             with open(nome_legenda_final, "w", encoding="utf-8") as f:
                 f.write(srt_final)
             print(f"✓ Legenda final sincronizada salva em: {nome_legenda_final}")
@@ -554,7 +560,7 @@ def dublar_com_ajuste_video(caminho_video, segmentos, idioma_voz="por", saida_vi
             print(f"⚠️ Erro ao salvar legenda final: {e_leg}")
         
         import glob
-        for f in glob.glob("temp_seg_*.wav"):
+        for f in glob.glob(os.path.join(OUTPUT_DIR, "temp_seg_*.wav")):
             try: os.remove(f)
             except: pass
             
@@ -711,8 +717,8 @@ def obter_configuracao_usuario():
 if __name__ == "__main__":
     # Certifique-se de que seu vídeo existe
     if not os.path.exists(VIDEO_ENTRADA):
-        print(f"✗ Arquivo não encontrado: {VIDEO_ENTRADA}")
-        print("  Coloque seu vídeo no mesmo diretório e renomeie para 'video_entrada.mp4'")
+        print(f"\n[!] Arquivo não encontrado: {VIDEO_ENTRADA}")
+        print(f"    Por favor, coloque seu vídeo na pasta '{INPUT_DIR}' e renomeie para 'video_entrada.mp4'")
     else:
         # Obter idiomas do usuário
         origem, destino, voz = obter_configuracao_usuario()
