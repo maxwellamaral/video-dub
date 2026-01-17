@@ -13,6 +13,8 @@ from transformers import pipeline
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from transformers import VitsModel, AutoTokenizer as TTSTokenizer
 import numpy as np
+import soundfile as sf
+from moviepy import *
 
 # ============================================================================
 # CONFIGURAÇÕES INICIAIS
@@ -442,6 +444,127 @@ def salvar_audio(audio_numpy, sample_rate, caminho_saida):
         print(f"✗ Erro ao salvar áudio: {e}")
         return False
 
+def sintetizar_segmento_audio(texto, model, tokenizer, sample_rate):
+    """Sintetiza um único segmento de texto para áudio (numpy array)."""
+    try:
+        import re
+        texto = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', texto)
+        texto = texto.strip()
+        if not texto: return None
+        
+        inputs = tokenizer(text=texto, return_tensors="pt").to(DEVICE)
+        with torch.no_grad():
+            output = model(**inputs).waveform
+        return output.cpu().numpy()[0]
+    except Exception as e:
+        print(f"⚠️ Erro ao sintetizar: '{texto[:20]}...': {e}")
+        return None
+
+def dublar_com_ajuste_video(caminho_video, segmentos, idioma_voz="por", saida_video="video_dublado.mp4"):
+    """
+    Recria o vídeo ajustando a velocidade das cenas para casar com o áudio traduzido.
+    """
+    print(f"\n🎬 Iniciando dublagem com ajuste de vídeo (MoviePy)...")
+    
+    try:
+        modelo_nome = f"facebook/mms-tts-{idioma_voz}"
+        model = VitsModel.from_pretrained(modelo_nome).to(DEVICE)
+        tokenizer = TTSTokenizer.from_pretrained(modelo_nome)
+        sample_rate = model.config.sampling_rate
+    except Exception as e:
+        print(f"✗ Erro ao carregar modelo TTS: {e}")
+        return False
+
+    clips_finais = []
+    
+    try:
+        video_original = VideoFileClip(caminho_video)
+    except Exception as e:
+        print(f"✗ Erro ao abrir vídeo original: {e}")
+        return False
+        
+    print(f"   Processando {len(segmentos)} segmentos...")
+    
+    novos_segmentos_legenda = []
+    tempo_acumulado = 0.0
+    
+    for i, seg in enumerate(segmentos):
+        start_t = seg["start"]
+        end_t = seg["end"]
+        texto = seg["text"]
+        
+        audio_data = sintetizar_segmento_audio(texto, model, tokenizer, sample_rate)
+        if audio_data is None:
+            duracao_audio = 0.5 
+            audio_clip = None
+        else:
+            temp_wav = f"temp_seg_{i}.wav"
+            import soundfile as sf
+            sf.write(temp_wav, audio_data, int(sample_rate))
+            audio_clip = AudioFileClip(temp_wav)
+            duracao_audio = audio_clip.duration
+            
+        if start_t >= video_original.duration:
+            break
+        end_t = min(end_t, video_original.duration)
+        
+        duracao_video_orig = end_t - start_t
+        if duracao_video_orig <= 0.1: continue
+        
+        video_clip = video_original.subclipped(start_t, end_t)
+        
+        if audio_clip:
+            ratio = duracao_video_orig / duracao_audio
+            ratio = max(0.1, min(ratio, 10.0)) 
+            
+            if abs(ratio - 1.0) > 0.05:
+                video_clip = video_clip.with_speed_scaled(ratio)
+            
+            video_clip = video_clip.with_audio(audio_clip)
+        else:
+            video_clip = video_clip.without_audio()
+            
+        duracao_final_clip = video_clip.duration
+        clips_finais.append(video_clip)
+        
+        # Guardar novo timestamp para legenda
+        novos_segmentos_legenda.append({
+            "start": tempo_acumulado,
+            "end": tempo_acumulado + duracao_final_clip,
+            "text": texto
+        })
+        tempo_acumulado += duracao_final_clip
+        
+        if (i+1) % 10 == 0:
+            print(f"   Seg {i+1}/{len(segmentos)} processado.")
+
+    print("   Concatenando clips e salvando (isso pode demorar)...")
+    try:
+        final_video = concatenate_videoclips(clips_finais, method="compose")
+        final_video.write_videofile(saida_video, codec="libx264", audio_codec="aac", fps=24, logger="bar")
+        
+        # Salvar nova legenda sincronizada
+        try:
+            srt_final = segmentos_para_srt(novos_segmentos_legenda)
+            nome_legenda_final = "legenda_final_sincronizada.srt"
+            with open(nome_legenda_final, "w", encoding="utf-8") as f:
+                f.write(srt_final)
+            print(f"✓ Legenda final sincronizada salva em: {nome_legenda_final}")
+        except Exception as e_leg:
+            print(f"⚠️ Erro ao salvar legenda final: {e_leg}")
+        
+        import glob
+        for f in glob.glob("temp_seg_*.wav"):
+            try: os.remove(f)
+            except: pass
+            
+        return True
+    except Exception as e:
+        print(f"✗ Erro na montagem final: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 # ============================================================================
 # ETAPA 5: REMONTAGEM DE VÍDEO COM NOVO ÁUDIO (ffmpeg)
 # ============================================================================
@@ -524,23 +647,17 @@ def executar_pipeline_completa(
     except Exception as e:
         print(f"⚠️  Aviso: Não foi possível salvar legenda traduzida: {e}")
     
-    # Preparar texto para TTS (juntar segmentos)
-    texto_para_tts = segmentos_para_texto(segmentos_traduzidos)
+    # 4. Dublagem Sincronizada com Ajuste de Vídeo
+    # Esta etapa sintetiza o áudio e ajusta o vídeo para casar com a duração da fala
+    sucesso_dublagem = dublar_com_ajuste_video(
+        caminho_video, 
+        segmentos_traduzidos, 
+        idioma_voz, 
+        VIDEO_SAIDA
+    )
     
-    # 4. Sintetizar voz
-    audio_novo, sample_rate = sintetizar_voz(texto_para_tts, idioma_voz)
-    if audio_novo is None:
-        print("✗ Falha na síntese de voz. Abortando.")
-        return False
-    
-    # 5. Salvar novo áudio
-    if not salvar_audio(audio_novo, sample_rate, AUDIO_TRADUZIDO):
-        print("✗ Falha ao salvar áudio. Abortando.")
-        return False
-    
-    # 6. Remontar vídeo
-    if not remontar_video(caminho_video, AUDIO_TRADUZIDO, VIDEO_SAIDA):
-        print("✗ Falha na remontagem. Abortando.")
+    if not sucesso_dublagem:
+        print("✗ Falha na dublagem sincronizada. Abortando.")
         return False
     
     print("\n" + "=" * 70)
