@@ -697,27 +697,26 @@ if __name__ == "__main__":
 # REFERÊNCIAS DE IDIOMAS (NLLB e MMS-TTS)
 # ============================================================================
 
-# Códigos NLLB (amostra):
-# en_XX = inglês
-# pt_BR = português brasileiro
-# pt_PT = português europeu
-# es_ES = espanhol
-# fr_XX = francês
-# de_DE = alemão
-# it_IT = italiano
-# ja_XX = japonês
-# zh_Hans = chinês simplificado
-# ru_RU = russo
-# ar_AR = árabe
+# Códigos NLLB (Flores-200 - amostra):
+# eng_Latn = inglês
+# por_Latn = português
+# spa_Latn = espanhol
+# fra_Latn = francês
+# deu_Latn = alemão
+# ita_Latn = italiano
+# jpn_Jpan = japonês
+# zho_Hans = chinês simplificado
+# rus_Cyrl = russo
+# ara_Arab = árabe
 
-# Idiomas MMS-TTS (texto-para-fala):
-# pt = português
-# en = inglês
-# es = espanhol
-# fr = francês
-# de = alemão
-# it = italiano
-# ja = japonês
-# zh = chinês
-# ru = russo
-# ar = árabe
+# Idiomas MMS-TTS (ISO 639-3):
+# por = português
+# eng = inglês
+# spa = espanhol
+# fra = francês
+# deu = alemão
+# ita = italiano
+# jpn = japonês
+# cmn = chinês (mandarim)
+# rus = russo
+# ara = árabe
