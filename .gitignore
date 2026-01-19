@@ -13,3 +13,8 @@ wheels/
 *.mp4
 *.srt
 *.wav
+*.m4a
+
+# Node dependencies
+node_modules/
+

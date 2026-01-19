@@ -9,70 +9,116 @@ from src.services.tts import TTSEngine
 from src.services.video import VideoEditor
 from src.utils import segmentos_para_srt
 
-def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz, motor_tts, modo_encoding):
-    print("="*60)
-    print(f"PIPELINE REFACTORED: {motor_tts.upper()} | {modo_encoding.upper()}")
-    print("="*60)
+def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz, motor_tts, modo_encoding, progress_callback=None):
+    """
+    Orquestra o processo completo de dublagem do vídeo.
+
+    Fluxo:
+    1. Extração de Áudio e Referência (se Coqui).
+    2. Transcrição (Whisper).
+    3. Tradução (NLLB).
+    4. Síntese de Voz (TTS).
+    5. Edição e Sincronização de Vídeo (VideoEditor).
+
+    Args:
+        caminho_video (str): Path do vídeo original.
+        idioma_origem (str): ex: 'eng_Latn'.
+        idioma_destino (str): ex: 'por_Latn'.
+        idioma_voz (str): ex: 'por'.
+        motor_tts (str): 'mms' ou 'coqui'.
+        modo_encoding (str): 'rapido' ou 'qualidade'.
+        progress_callback (callable, optional): Função que aceita string para logs.
+
+    Returns:
+        bool: True se o vídeo foi gerado com sucesso.
+    """
+    def log(msg):
+        print(msg)
+        if progress_callback:
+            try:
+                progress_callback(msg)
+            except: pass
+
+    log("="*60)
+    log(f"PIPELINE WEB: {motor_tts.upper()} | {modo_encoding.upper()}")
+    log("="*60)
     
     # 0. Limpeza prévia
-    if os.path.exists(VIDEO_SAIDA_BASE + f"_{motor_tts}.mp4"):
-        try: os.remove(VIDEO_SAIDA_BASE + f"_{motor_tts}.mp4")
+    nome_saida = f"{VIDEO_SAIDA_BASE}_{motor_tts}.mp4"
+    if os.path.exists(nome_saida):
+        try: os.remove(nome_saida)
         except: pass
 
     # 1. Extração de Áudio e Referência
-    if not extrair_audio(caminho_video, AUDIO_EXTRAIDO): return False
+    log("1. Extraindo áudio original...")
+    if not extrair_audio(caminho_video, AUDIO_EXTRAIDO, log_callback=log): 
+        log("❌ Falha na extração de áudio.")
+        return False
     
     if motor_tts == "coqui":
-        extrair_referencia_voz(caminho_video, AUDIO_REFERENCIA)
+        log("1.1. Extraindo referência de voz (Clonagem)...")
+        extrair_referencia_voz(caminho_video, AUDIO_REFERENCIA, log_callback=log)
         
     # 2. Transcrição
-    segmentos = transcrever_audio_whisper(AUDIO_EXTRAIDO)
-    if not segmentos: return False
+    log("2. Transcrevendo áudio (Whisper)...")
+    segmentos = transcrever_audio_whisper(AUDIO_EXTRAIDO, log_callback=log)
+    if not segmentos: 
+        log("❌ Nenhum diálogo detectado ou falha na transcrição.")
+        return False
     
     # 3. Tradução
-    seg_traduzidos = traduzir_segmentos(segmentos, idioma_origem, idioma_destino)
+    log(f"3. Traduzindo para {idioma_destino} (NLLB)...")
+    seg_traduzidos = traduzir_segmentos(segmentos, idioma_origem, idioma_destino, log_callback=log)
     
     # 4. Síntese TTS
-    tts = TTSEngine(motor=motor_tts, idioma=idioma_voz, ref_wav=AUDIO_REFERENCIA)
+    log(f"4. Sintetizando Voz ({motor_tts})...")
+    tts = TTSEngine(
+        motor=motor_tts, 
+        idioma=idioma_voz, 
+        ref_wav=AUDIO_REFERENCIA,
+        log_callback=log
+    )
+    
     textos = [s["text"] for s in seg_traduzidos]
+    
     # Retorna lista de (audio_np, sample_rate)
+    log(f"   Gerando áudio para {len(textos)} segmentos...")
     audios = tts.sintetizar_batch(textos)
     
     # 5. Edição de Vídeo
+    log("5. Editando e Sincronizando Vídeo...")
     editor = VideoEditor(caminho_video)
-    nome_saida = f"{VIDEO_SAIDA_BASE}_{motor_tts}.mp4"
     temp_files = []
+    ok = False
     
     try:
-        clips, temp_wavs, legendas_sync = editor.processar_segmentos(seg_traduzidos, audios)
+        clips, temp_wavs, legendas_sync = editor.processar_segmentos(seg_traduzidos, audios, log_callback=log)
         temp_files.extend(temp_wavs)
         
-        ok = editor.renderizar_video(clips, nome_saida, modo=modo_encoding)
+        log(f"   Renderizando vídeo final: {os.path.basename(nome_saida)}")
+        ok = editor.renderizar_video(clips, nome_saida, modo=modo_encoding, log_callback=log)
         if ok:
             # Salvar SRT final
             with open(LEGENDA_FINAL, "w", encoding="utf-8") as f:
                 f.write(segmentos_para_srt(legendas_sync))
-            print(f"✓ Pipeline concluída: {nome_saida}")
+            log(f"✅ Pipeline concluída com sucesso!")
             
     except Exception as e:
-        print(f"✗ Falha na edição: {e}")
+        log(f"❌ Falha na edição: {e}")
         ok = False
+        import traceback
+        traceback.print_exc()
         
     finally:
         editor.close()
         # Limpeza robusta
-        print("   🧹 Limpando temporários...")
+        log("   🧹 Limpando arquivos temporários...")
         for f in temp_files:
             try:
                 if os.path.exists(f): os.remove(f)
             except: 
-                # Retry logic simples
                 time.sleep(0.5)
                 try: os.remove(f)
                 except: pass
                 
     return ok
-
-if __name__ == "__main__":
-    # Teste rápido se rodado direto
-    executar_pipeline(VIDEO_ENTRADA, IDIOMA_ORIGEM, IDIOMA_DESTINO, "por", "mms", "rapido")

@@ -5,10 +5,43 @@ import time
 import numpy as np
 import soundfile as sf
 from moviepy import VideoFileClip, AudioFileClip, concatenate_videoclips
+from proglog import ProgressBarLogger
 from src.config import OUTPUT_DIR
 
+class MyLogger(ProgressBarLogger):
+    def __init__(self, custom_callback=None):
+        super().__init__()
+        self.custom_callback = custom_callback
+        self.last_update = 0
+
+    def bars_callback(self, bar, attr, value, old_value=None):
+        # Throttle updates to avoid spamming WebSocket
+        if self.custom_callback and (value - self.last_update > self.bars[bar]['total'] * 0.01):
+            total = self.bars[bar]['total']
+            if total > 0:
+                percentage = int((value / total) * 100)
+                self.custom_callback(f"PROGRESS: {percentage}")
+                self.last_update = value
+
+    def callback(self, **changes):
+        # Capture text messages from MoviePy
+        if self.custom_callback and 'message' in changes:
+            self.custom_callback(f"   [FFmpeg] {changes['message']}")
+
 class VideoEditor:
+    """
+    Gerenciador de edição e manipulação de vídeo.
+
+    Responsável por cortar, redimensionar o tempo (speedup/slowdown) e
+    sincronizar o áudio dublado com o vídeo original.
+    """
     def __init__(self, caminho_video):
+        """
+        Carrega o vídeo original usando MoviePy.
+
+        Args:
+            caminho_video (str): Path do arquivo de vídeo.
+        """
         self.caminho_video = caminho_video
         try:
             self.video_original = VideoFileClip(caminho_video)
@@ -22,12 +55,25 @@ class VideoEditor:
         if hasattr(self, 'video_original') and self.video_original:
             self.video_original.close()
             
-    def processar_segmentos(self, segmentos, audios_sintetizados):
+    def processar_segmentos(self, segmentos, audios_sintetizados, log_callback=None):
         """
-        Gera clips sincronizados.
-        audios_sintetizados: lista de (audio_numpy, sample_rate)
+        Gera uma lista de videoclips sincronizados com o novo áudio.
+
+        Ajusta a velocidade do vídeo (time stretching) para casar com a duração
+        do áudio dublado, dentro de limites aceitáveis (0.1x a 10x).
+
+        Args:
+            segmentos (list): Lista de legendas traduzidas (metadata).
+            audios_sintetizados (list): Lista de áudios (numpy arrays).
+            log_callback (callable, optional): Função para logar mensagens.
+
+        Returns:
+            tuple: (lista_clips_video, lista_arquivos_temp, novas_legendas)
         """
-        print(f"   🎬 Sincronizando {len(segmentos)} segmentos...")
+        msg = f"   🎬 Sincronizando {len(segmentos)} segmentos..."
+        if log_callback: log_callback(msg)
+        else: print(msg)
+        
         clips_finais = []
         arquivos_temp = []
         novas_legendas = []
@@ -96,11 +142,25 @@ class VideoEditor:
             
         return clips_finais, arquivos_temp, novas_legendas
 
-    def renderizar_video(self, clips, caminho_saida, modo="rapido"):
-        """Compila e salva o vídeo final."""
+    def renderizar_video(self, clips, caminho_saida, modo="rapido", log_callback=None):
+        """
+        Compila a lista de clips finais em um único arquivo de vídeo.
+
+        Args:
+            clips (list): Lista de objetos VideoFileClip processados.
+            caminho_saida (str): Path final do arquivo .mp4.
+            modo (str): 'rapido' (NVENC) ou 'qualidade' (libx264).
+            log_callback (callable, optional): Função para logar mensagens.
+
+        Returns:
+            bool: True se sucesso.
+        """
         if not clips: return False
         
-        print("   Concatenando clips...")
+        msg = "   Concatenando clips..."
+        if log_callback: log_callback(msg)
+        else: print(msg)
+
         # Validar FPS
         clips = [c.with_fps(24) if not c.fps else c for c in clips]
         final_video = concatenate_videoclips(clips, method="compose")
@@ -132,20 +192,35 @@ class VideoEditor:
         success = False
         start_t = time.time()
         
+        # Prepare Logger
+        logger = "bar" # Default
+        if log_callback:
+            logger = MyLogger(log_callback)
+
         if modo == "rapido":
-            print("   🚀 Renderizando (GPU NVENC)...")
+            msg_gpu = "   🚀 Renderizando (GPU NVENC)..."
+            if log_callback: log_callback(msg_gpu)
+            else: print(msg_gpu)
+
             try:
-                final_video.write_videofile(caminho_saida, **params_gpu, logger="bar")
+                final_video.write_videofile(caminho_saida, **params_gpu, logger=logger)
                 success = True
             except Exception as e:
-                print(f"   ⚠️ Falha GPU: {e}. Tentando CPU...")
+                msg_fail = f"   ⚠️ Falha GPU: {e}. Tentando CPU..."
+                if log_callback: log_callback(msg_fail)
+                else: print(msg_fail)
                 # Fallback para CPU logic abaixo
         
         if not success: # Se não era rápido ou se falhou
-            print("   🎬 Renderizando (CPU libx264)...")
-            final_video.write_videofile(caminho_saida, **params_cpu, logger="bar")
+            msg_cpu = "   🎬 Renderizando (CPU libx264)..."
+            if log_callback: log_callback(msg_cpu)
+            else: print(msg_cpu)
+            final_video.write_videofile(caminho_saida, **params_cpu, logger=logger)
             
-        print(f"   ⏱️ Tempo render: {time.time() - start_t:.1f}s")
+        render_time = f"   ⏱️ Tempo render: {time.time() - start_t:.1f}s"
+        if log_callback: log_callback(render_time)
+        else: print(render_time)
+
         final_video.close()
         for c in clips: c.close()
         return True

@@ -8,28 +8,66 @@ from src.utils import obter_ffmpeg_exe
 
 FFMPEG_EXE = obter_ffmpeg_exe()
 
-def extrair_referencia_voz(caminho_video, caminho_saida, duracao=10):
-    """Extrai os primeiros segundos para referência de voz."""
-    print(f"🎙️ Extraindo referência de voz ({duracao}s)...")
+def extrair_referencia_voz(caminho_video, caminho_saida, duracao=10, log_callback=None):
+    """
+    Extrai os primeiros segundos de áudio do vídeo para usar como referência de clonagem.
+    
+    Usado principalmente pelo Coqui TTS para capturar o timbre original da voz.
+
+    Args:
+        caminho_video (str): Path do vídeo de entrada.
+        caminho_saida (str): Path onde o áudio de referência será salvo (.wav).
+        duracao (int, optional): Duração em segundos do trecho a extrair. Default: 10s.
+        log_callback (callable, optional): Função para logar mensagens.
+
+    Returns:
+        bool: True se sucesso, False caso contrário.
+    """
+    msg = f"🎙️ Extraindo referência de voz ({duracao}s)..."
+    if log_callback: log_callback(msg)
+    else: print(msg)
+
     video = None
     try:
         from moviepy import VideoFileClip
         video = VideoFileClip(caminho_video)
         trecho = video.subclipped(0, min(duracao, video.duration))
         trecho.audio.write_audiofile(caminho_saida, fps=22050, nbytes=2, codec='pcm_s16le', logger=None)
-        print(f"✓ Referência salva em: {caminho_saida}")
+        
+        msg_ok = f"✓ Referência salva em: {caminho_saida}"
+        if log_callback: log_callback(msg_ok)
+        else: print(msg_ok)
+        
         return True
     except Exception as e:
-        print(f"⚠️ Erro ao extrair referência de voz: {e}")
+        msg_err = f"⚠️ Erro ao extrair referência de voz: {e}"
+        if log_callback: log_callback(msg_err)
+        else: print(msg_err)
         return False
     finally:
         if video:
             try: video.close()
             except: pass
 
-def extrair_audio(caminho_video, caminho_audio_saida):
-    """Extrai faixa de áudio completa usando ffmpeg."""
-    print(f"\n📹 Extraindo áudio de: {caminho_video}")
+def extrair_audio(caminho_video, caminho_audio_saida, log_callback=None):
+    """
+    Extrai a faixa de áudio completa de um vídeo usando FFmpeg.
+    
+    O áudio é extraído sem recompressão desnecessária (-q:a 9) para garantir qualidade
+    na transcrição subsequente.
+
+    Args:
+        caminho_video (str): Path do vídeo de entrada.
+        caminho_audio_saida (str): Path de saída do áudio (.wav).
+        log_callback (callable, optional): Função para logar mensagens.
+
+    Returns:
+        bool: True se sucesso, False caso contrário.
+    """
+    msg = f"\n📹 Extraindo áudio de: {caminho_video}"
+    if log_callback: log_callback(msg)
+    else: print(msg)
+
     try:
         cmd = [
             FFMPEG_EXE, "-i", caminho_video,
@@ -38,20 +76,40 @@ def extrair_audio(caminho_video, caminho_audio_saida):
         ]
         # output silenciado para limpeza, exceto erros
         subprocess.run(cmd, check=True, capture_output=True)
-        print(f"✓ Áudio extraído: {caminho_audio_saida}")
+        
+        msg_ok = f"✓ Áudio extraído: {caminho_audio_saida}"
+        if log_callback: log_callback(msg_ok)
+        else: print(msg_ok)
+        
         return True
     except Exception as e:
-        print(f"✗ Erro ao extrair áudio: {e}")
+        msg_err = f"✗ Erro ao extrair áudio: {e}"
+        if log_callback: log_callback(msg_err)
+        else: print(msg_err)
         return False
 
-def transcrever_audio_whisper(caminho_audio, modelo="openai/whisper-base"):
+def transcrever_audio_whisper(caminho_audio, modelo="openai/whisper-base", log_callback=None):
     """
-    Transcreve e segmenta o áudio usando Whisper (Hugging Face Pipeline).
-    Retorna lista de segmentos otimizada.
+    Transcreve áudio para texto com timestamps precisos usando o modelo Whisper.
+
+    Utiliza a pipeline `automatic-speech-recognition` da Hugging Face.
+    Tenta priorizar timestamps em nível de palavra (word-level) para melhor
+    sincronização labial/segmentação.
+
+    Args:
+        caminho_audio (str): Path do arquivo de áudio (.wav).
+        modelo (str, optional): ID do modelo Whisper no Hugging Face. Default: "openai/whisper-base".
+        log_callback (callable, optional): Função para logar mensagens.
+
+    Returns:
+        list: Lista de dicionários de segmentos processados (ver `_processar_chunks_whisper`).
     """
-    print(f"\n🎙️  Transcrevendo áudio com Whisper ({modelo})...")
+    msg = f"\n🎙️  Transcrevendo áudio com Whisper ({modelo})..."
+    if log_callback: log_callback(msg)
+    else: print(msg)
     
     try:
+        if log_callback: log_callback("   Carregando modelo Whisper...")
         pipe = pipeline(
             task="automatic-speech-recognition",
             model=modelo,
@@ -62,25 +120,27 @@ def transcrever_audio_whisper(caminho_audio, modelo="openai/whisper-base"):
         
         # Word-level timestamps preferencialmente
         try:
+            if log_callback: log_callback("   Processando (word timestamps)...")
             resultado = pipe(caminho_audio, return_timestamps="word")
         except:
-            print("   ⚠️ Word timestamps falhou, fallback para default.")
+            warn = "   ⚠️ Word timestamps falhou, fallback para default."
+            if log_callback: log_callback(warn)
+            else: print(warn)
             resultado = pipe(caminho_audio, return_timestamps=True)
             
-        return _processar_chunks_whisper(resultado)
+        return _processar_chunks_whisper(resultado, log_callback)
         
     except Exception as e:
-        print(f"✗ Erro na transcrição: {e}")
+        err = f"✗ Erro na transcrição: {e}"
+        if log_callback: log_callback(err)
+        else: print(err)
         return []
 
-def _processar_chunks_whisper(resultado):
+def _processar_chunks_whisper(resultado, log_callback=None):
     """Reagrupa palavras/chunks em segmentos de legenda."""
     raw_chunks = resultado.get("chunks", [])
     if not raw_chunks:
-        start, end = 0.0, 0.0
-        # Tentar pegar do text se não houver chunks
         text = resultado.get("text", "")
-        # Estimativa grosseira se não tiver time
         return [{"start": 0.0, "end": 5.0, "text": text}] if text else []
 
     segmentos = []
@@ -115,7 +175,6 @@ def _processar_chunks_whisper(resultado):
         pause = start - last_end
         duration = end - seg_start
         
-        # Decisão de quebra
         should_break = False
         if buffer_words:
             if pause > MIN_PAUSE: should_break = True
@@ -144,5 +203,8 @@ def _processar_chunks_whisper(resultado):
             "text": " ".join(buffer_words)
         })
         
-    print(f"✓ Transcrição: {len(segmentos)} segmentos gerados.")
+    msg = f"✓ Transcrição: {len(segmentos)} segmentos gerados."
+    if log_callback: log_callback(msg)
+    else: print(msg)
+    
     return segmentos

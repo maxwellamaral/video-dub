@@ -1,0 +1,28 @@
+:root {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Theme Variables */
+  --bg: #1a1b26;
+  --card-bg: #24283b;
+  --primary: #7aa2f7;
+  --text: #c0caf5;
+  --text-muted: #565f89;
+  --green: #9ece6a;
+  --red: #f7768e;
+  --yellow: #e0af68;
+}
+
+body {
+  margin: 0;
+  display: block;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+h1, h2, h3 { color: var(--primary); margin: 0; }
+a { color: var(--primary); text-decoration: none; }
+button { font-family: inherit; }

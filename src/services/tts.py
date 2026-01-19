@@ -6,26 +6,47 @@ from transformers import VitsModel, AutoTokenizer
 from src.config import DEVICE
 
 class TTSEngine:
-    def __init__(self, motor="mms", idioma="por", ref_wav=None):
+    """
+    Motor unificado de Síntese de Voz (Text-to-Speech).
+
+    Suporta múltiplos backends:
+    - 'mms': Meta Massively Multilingual Speech (Facebook) - Rápido, offline.
+    - 'coqui': Coqui XTTS v2 - Qualidade alta, suporte a clonagem de voz.
+    """
+    def __init__(self, motor="mms", idioma="por", ref_wav=None, log_callback=None):
+        """
+        Inicializa o motor TTS.
+
+        Args:
+            motor (str): 'mms' ou 'coqui'.
+            idioma (str): Código do idioma (ex: 'por', 'por_Latn').
+            ref_wav (str, optional): Caminho para áudio de referência (apenas Coqui).
+            log_callback (callable, optional): Função para logar mensagens.
+        """
         self.motor = motor
         self.idioma = idioma
         self.ref_wav = ref_wav
+        self.log_callback = log_callback
         self.config = {}
         self.sample_rate = 24000 # default fallback
         
         self._carregar_modelo()
         
+    def _log(self, msg):
+        if self.log_callback: self.log_callback(msg)
+        else: print(msg)
+
     def _carregar_modelo(self):
         try:
             if self.motor == "mms":
                 modelo_nome = f"facebook/mms-tts-{self.idioma}"
-                print(f"   Carregando MMS-TTS: {modelo_nome}")
+                self._log(f"   Carregando MMS-TTS: {modelo_nome}")
                 self.config["tokenizer"] = AutoTokenizer.from_pretrained(modelo_nome)
                 self.config["model"] = VitsModel.from_pretrained(modelo_nome).to(DEVICE)
                 self.sample_rate = self.config["model"].config.sampling_rate
                 
             elif self.motor == "coqui":
-                print("   Carregando Coqui XTTS v2...")
+                self._log("   Carregando Coqui XTTS v2...")
                 os.environ["COQUI_TOS_AGREED"] = "1"
                 from TTS.api import TTS
                 
@@ -40,18 +61,27 @@ class TTSEngine:
                 torch.load = original_load # Restore
                 
                 self.sample_rate = 24000
-                print("   ✓ Coqui Loaded.")
+                self._log("   ✓ Coqui Loaded.")
                 
         except Exception as e:
-            print(f"✗ Erro ao inicializar TTS {self.motor}: {e}")
+            self._log(f"✗ Erro ao inicializar TTS {self.motor}: {e}")
             raise e
 
     def sintetizar_batch(self, textos):
         """
-        Sintetiza uma lista de textos.
-        Retorna lista de tuplas (audio_numpy, sample_rate).
+        Sintetiza uma lista de textos em áudio.
+
+        Para MMS, tenta processar em lote (embora a implementação atual seja iterativa
+        para evitar OOM, a interface permite otimização futura).
+        
+        Args:
+            textos (list): Lista de strings para sintetizar.
+
+        Returns:
+            list: Lista de tuplas (audio_numpy_array, sample_rate).
+                  Retorna (None, None) em caso de falha no segmento.
         """
-        print(f"   🔊 Sintetizando {len(textos)} segmentos ({self.motor})...")
+        self._log(f"   🔊 Sintetizando {len(textos)} segmentos ({self.motor})...")
         resultados = []
         
         if self.motor == "mms":
@@ -59,7 +89,10 @@ class TTSEngine:
             tokenizer = self.config["tokenizer"]
             
             with torch.no_grad():
-                for texto in textos:
+                for i, texto in enumerate(textos):
+                    # Logs de progresso
+                    if (i+1) % 5 == 0: self._log(f"   ... Sintetizando {i+1}/{len(textos)}")
+
                     clean = "".join([c for c in texto if c.isalnum() or c in " ,.?!"])
                     if not clean.strip():
                         resultados.append((None, None))
@@ -74,12 +107,13 @@ class TTSEngine:
             tts = self.config["tts"]
             lang = "pt" if self.idioma == "por_Latn" or self.idioma == "por" else "en"
             
-            for texto in textos:
+            for i, texto in enumerate(textos):
+                if (i+1) % 5 == 0: self._log(f"   ... Sintetizando {i+1}/{len(textos)}")
                 try:
                     wav = tts.tts(text=texto, speaker_wav=self.ref_wav, language=lang)
                     resultados.append((np.array(wav), self.sample_rate))
                 except Exception as e:
-                    print(f"   ⚠️ Erro Coqui no segmento: {e}")
+                    self._log(f"   ⚠️ Erro Coqui no segmento {i}: {e}")
                     resultados.append((None, None))
                     
         return resultados

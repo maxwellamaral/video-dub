@@ -78,6 +78,27 @@ Siga o menu interativo:
 
 O resultado será salvo na pasta `output/` como `video_dublado_{motor}.mp4`.
 
+### 3. Interface Web (Novo!)
+
+Para uma experiência visual com logs em tempo real:
+
+1. Execute o script de inicialização (PowerShell):
+
+   ```powershell
+   .\run_app.ps1
+   ```
+
+   Isso abrirá duas janelas em background (Backend e Frontend).
+
+2. Acesse no navegador:
+   `http://localhost:5173`
+
+3. Na interface:
+   - Faça upload do vídeo.
+   - Escolha o Motor (MMS/Coqui).
+   - Acompanhe o progresso no terminal embutido.
+   - Baixe o vídeo final diretamente da página.
+
 ## 🧪 Testes
 
 Para verificar a integridade da instalação e do pipeline, execute a suíte de testes:
