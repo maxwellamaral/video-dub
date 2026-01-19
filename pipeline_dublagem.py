@@ -738,17 +738,6 @@ def dublar_com_ajuste_video(caminho_video, segmentos, idioma_voz, saida_video, m
                     
                     video_clip = video_clip.with_audio(audio_clip)
 
-                    # --- DEBUG ÁUDIO ---
-                    if len(audio_data) > 0:
-                        peak = np.max(np.abs(audio_data))
-                        print(f"   📊 Segmento {i} Peak Amplitude: {peak:.4f} (Type: {audio_data.dtype})", flush=True)
-                        if peak < 0.001:
-                            print(f"   ⚠️ ALERTA: Áudio do segmento {i} parece SILENCIOSO!", flush=True)
-                    
-                    if video_clip.audio is None:
-                        print(f"   ⚠️ ALERTA: Segmento {i} ficou SEM áudio após with_audio()!", flush=True)
-                    # -------------------
-
                     # Forçar duração exata do vídeo para bater com o áudio útil
                     video_clip = video_clip.with_duration(duracao_final_clip)
                 except Exception as e_audio:
