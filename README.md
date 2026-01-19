@@ -1,0 +1,103 @@
+# Dubbler Pro - Pipeline de Dublagem Automática (v2.0)
+
+Sistema automatizado para dublagem de vídeos utilizando Inteligência Artificial. O projeto realiza transcrição, tradução, síntese de voz (TTS) e sincronização labial (em desenvolvimento/sincronia temporal), tudo otimizado para GPUs NVIDIA.
+
+---
+
+## 🚀 Features
+
+- **Arquitetura Modular**: Código organizado em serviços independentes (`src/services/`) para fácil manutenção.
+- **Múltiplos Motores TTS**:
+  - **MMS-TTS (Facebook)**: Rápido, leve e totalmente offline.
+  - **Coqui XTTS v2**: Alta qualidade com clonagem de voz (Voice Cloning) a partir do vídeo original.
+- **Encoding Inteligente**:
+  - **Modo Rápido**: Aceleração via GPU (`h264_nvenc`).
+  - **Modo Qualidade**: Compressão superior via CPU (`libx264`) com correção automática de áudio.
+- **Resiliência**: Tratamento robusto de erros (WinError 6, falhas de I/O) e limpeza automática de recursos.
+- **Testes Automatizados**: Suíte completa (`pytest`) para validar o pipeline.
+
+## 🛠️ Arquitetura do Projeto
+
+O sistema foi refatorado para seguir boas práticas de Engenharia de Software:
+
+```
+video-dub/
+├── main_refactored.py       # Ponto de Entrada (Entrypoint)
+├── requirements.txt         # Dependências do Python
+├── tests/                   # Testes Automatizados (pytest)
+└── src/                     # Código Fonte Modular
+    ├── config.py            # Configurações Globais (Caminhos, GPU, Modelos)
+    ├── pipeline.py          # Orquestrador Principal
+    ├── utils.py             # Funções Auxiliares (FFmpeg helper, logs)
+    └── services/            # Serviços Especializados
+        ├── audio.py         # Extração de Áudio e Transcrição (Whisper)
+        ├── translation.py   # Tradução Neural (NLLB)
+        ├── tts.py           # Síntese de Voz (Wrapper para MMS/Coqui)
+        └── video.py         # Sincronização e Renderização (MoviePy)
+```
+
+## 📋 Pré-requisitos
+
+- **Python**: 3.10 ou superior.
+- **FFmpeg**: Instalado e acessível no PATH (o script tenta detectar automaticamente).
+- **GPU NVIDIA** (Opcional, mas recomendado): Para transcrição Whisper e codec NVENC.
+- **CUDA Toolkit**: Compatível com a versão do PyTorch instalada.
+
+## 📦 Instalação
+
+1. Clone o repositório e entre na pasta.
+2. Crie um ambiente virtual (recomendado):
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\activate
+   ```
+3. Instale as dependências:
+   ```powershell
+   pip install -r requirements.txt
+   ```
+   _Nota: Para suporte a GPU, certifique-se de instalar a versão correta do `torch` com CUDA._
+
+## ▶️ Como Usar
+
+### 1. Preparação
+
+Coloque o vídeo que deseja dublar na pasta `input/` e renomeie para `video_entrada.mp4` (ou ajuste no menu).
+
+### 2. Execução
+
+Execute o arquivo principal:
+
+```powershell
+python main_refactored.py
+```
+
+Siga o menu interativo:
+
+1. Escolha o motor de voz (MMS ou Coqui).
+2. Escolha o modo de encoding (Rápido/GPU ou Qualidade/CPU).
+
+O resultado será salvo na pasta `output/` como `video_dublado_{motor}.mp4`.
+
+## 🧪 Testes
+
+Para verificar a integridade da instalação e do pipeline, execute a suíte de testes:
+
+```powershell
+python -m pytest tests/ -v
+```
+
+Os testes validam:
+
+- Detecção de ambiente (CUDA, FFmpeg).
+- Pipeline MMS (End-to-end com vídeo sintético).
+- Pipeline Coqui (Carregamento e execução básica).
+
+## ⚠️ Solução de Problemas Comuns
+
+- **WinError 6 (Invalid Handle)**: Geralmente causado por antivírus ou delay de sistema de arquivos. O script possui retry automático.
+- **Vídeo sem Áudio**: Use o modo "Qualidade" ou garanta que o FFmpeg esteja atualizado. O script força muxing de áudio `aac` para compatibilidade.
+- **Accessing time... Error**: Erro de ponto flutuante do MoviePy corrigido nesta versão via padding de áudio.
+
+---
+
+_Desenvolvido com foco em automação e qualidade via Python._
