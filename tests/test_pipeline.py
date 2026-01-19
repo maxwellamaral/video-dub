@@ -7,7 +7,7 @@ from pathlib import Path
 # Adicionar root ao path
 sys.path.append(os.getcwd())
 
-from pipeline_dublagem import executar_pipeline_completa, OUTPUT_DIR
+from src.pipeline import executar_pipeline, OUTPUT_DIR
 
 def test_verify_environment():
     """Testa se torch e ffmpeg estão detectáveis."""
@@ -25,11 +25,13 @@ def test_pipeline_mms_fast(synthetic_video, output_dir):
     # mas o Whisper vai transcrever nada.
     # Isso pode falhar se o pipeline exigir texto. 
     # Vamos mockar a transcrição ou aceitar que se não houver texto, ele gera vídeo mudo?
-    # O pipeline atual ignora segmentos vazios. Se não houver fala, gera video mudo.
-    # Isso serve como teste de robustez.
+    # O pipeline returna True/False
     
-    result = executar_pipeline_completa(
+    result = executar_pipeline(
         caminho_video=video_path,
+        idioma_origem="eng_Latn",
+        idioma_destino="por_Latn",
+        idioma_voz="por",
         motor_tts="mms",
         modo_encoding="rapido"
     )
@@ -52,9 +54,13 @@ def test_pipeline_coqui_quality(synthetic_video, output_dir):
     # No pipeline, 'extrair_referencia_voz' é chamado. 
     # Precisamos garantir que ele crie um arquivo 'referencia_voz.wav' válido.
     
+    
     # Apenas rodar e ver se não crasha com exceções tratadas
-    result = executar_pipeline_completa(
+    result = executar_pipeline(
         caminho_video=video_path,
+        idioma_origem="eng_Latn",
+        idioma_destino="por_Latn",
+        idioma_voz="por",
         motor_tts="coqui",
         modo_encoding="qualidade"
     )
