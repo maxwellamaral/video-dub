@@ -81,6 +81,11 @@ LEGENDA_TRADUZIDA = os.path.join(OUTPUT_DIR, "legenda_traduzida.srt")
 # Motores TTS Disponíveis
 MOTORES_TTS = ["mms", "coqui"]
 
+# Modos de Encoding de Vídeo
+# 'rapido' = GPU NVENC (h264_nvenc) com preset ultrafast - muito mais rápido
+# 'qualidade' = CPU libx264 com preset medium - melhor compressão
+MODOS_ENCODING = ["rapido", "qualidade"]
+
 def obter_ffmpeg_exe():
     """Retorna o caminho do executável ffmpeg."""
     try:
@@ -549,9 +554,12 @@ def sintetizar_segmento_audio(texto, motor, config):
 
     return None, None
 
-def dublar_com_ajuste_video(caminho_video, segmentos, idioma_voz, saida_video, motor_tts="mms"):
+def dublar_com_ajuste_video(caminho_video, segmentos, idioma_voz, saida_video, motor_tts="mms", modo_encoding="rapido"):
     """
-    Versão aprimorada que suporta múltiplos motores TTS.
+    Versão aprimorada que suporta múltiplos motores TTS e modos de encoding.
+    
+    Args:
+        modo_encoding: 'rapido' (GPU NVENC) ou 'qualidade' (CPU libx264)
     """
     print(f"\n️ Iniciando síntese e sincronização com motor: {motor_tts.upper()}")
     
@@ -714,7 +722,58 @@ def dublar_com_ajuste_video(caminho_video, segmentos, idioma_voz, saida_video, m
             clips_com_fps.append(clip)
         
         final_video = concatenate_videoclips(clips_com_fps, method="compose")
-        final_video.write_videofile(saida_video, codec="libx264", audio_codec="aac", fps=24, logger="bar")
+        
+        # Configurar encoding baseado no modo escolhido
+        import time
+        tempo_inicio_encoding = time.time()
+        
+        if modo_encoding == "rapido":
+            # Modo RÁPIDO: GPU NVIDIA NVENC - muito mais rápido
+            print(f"   🚀 Modo RÁPIDO: Usando GPU NVENC (h264_nvenc)")
+            try:
+                final_video.write_videofile(
+                    saida_video,
+                    codec="h264_nvenc",           # NVIDIA GPU encoder
+                    audio_codec="aac",
+                    fps=24,
+                    preset="p1",                  # Preset mais rápido do NVENC (p1-p7)
+                    ffmpeg_params=[
+                        "-rc", "vbr",             # Variable bitrate
+                        "-cq", "23",              # Qualidade constante (menor = melhor)
+                        "-b:v", "0",              # Bitrate automático
+                    ],
+                    logger="bar"
+                )
+            except Exception as nvenc_err:
+                print(f"   ⚠️ NVENC falhou ({nvenc_err}), usando CPU fallback...")
+                # Fallback para libx264 se NVENC não estiver disponível
+                final_video.write_videofile(
+                    saida_video,
+                    codec="libx264",
+                    audio_codec="aac",
+                    fps=24,
+                    preset="ultrafast",
+                    threads=8,
+                    logger="bar"
+                )
+        else:
+            # Modo QUALIDADE: CPU libx264 com melhor compressão
+            print(f"   🎬 Modo QUALIDADE: Usando CPU libx264 (melhor compressão)")
+            final_video.write_videofile(
+                saida_video,
+                codec="libx264",
+                audio_codec="aac",
+                fps=24,
+                preset="medium",              # Balanço entre velocidade e qualidade
+                threads=os.cpu_count() or 4,  # Usar todos os cores disponíveis
+                ffmpeg_params=[
+                    "-crf", "18",             # Qualidade alta (menor = melhor, 18-23 recomendado)
+                ],
+                logger="bar"
+            )
+        
+        tempo_encoding = time.time() - tempo_inicio_encoding
+        print(f"   ⏱️ Tempo de encoding: {tempo_encoding:.1f}s")
         
         # Salvar nova legenda sincronizada
         try:
@@ -791,7 +850,8 @@ def executar_pipeline_completa(
     idioma_origem="eng_Latn",
     idioma_destino="por_Latn",
     idioma_voz="por",
-    motor_tts="mms"
+    motor_tts="mms",
+    modo_encoding="rapido"
 ):
     """
     Executa a pipeline completa de dublagem.
@@ -845,7 +905,7 @@ def executar_pipeline_completa(
         print(f"⚠️  Aviso: Não foi possível salvar legenda traduzida: {e}")
 
     # 4. Sintetizar e Montar com ajuste dinâmico de vídeo
-    if not dublar_com_ajuste_video(caminho_video, segmentos_traduzidos, idioma_voz, saida_video, motor_tts):
+    if not dublar_com_ajuste_video(caminho_video, segmentos_traduzidos, idioma_voz, saida_video, motor_tts, modo_encoding):
         print("✗ Falha na síntese/montagem final. Abortando.")
         return False
     
@@ -902,7 +962,20 @@ def obter_configuracao_usuario():
     except ValueError:
         motor = "mms"
 
-    return origem, destino, voz, motor
+    print("\n" + "="*50)
+    print("       3. MODO DE ENCODING (VÍDEO)")
+    print("="*50)
+    print("1. Rápido (GPU NVENC - Necessário NVIDIA)")
+    print("2. Qualidade (CPU libx264 - Melhor compressão)")
+    
+    try:
+        escolha_enc = int(input("\nEscolha o modo (padrão 1): ") or "1")
+        modos = {1: "rapido", 2: "qualidade"}
+        modo = modos.get(escolha_enc, "rapido")
+    except ValueError:
+        modo = "rapido"
+
+    return origem, destino, voz, motor, modo
 
 if __name__ == "__main__":
     # Certifique-se de que seu vídeo existe
@@ -911,11 +984,12 @@ if __name__ == "__main__":
         print(f"    Por favor, coloque seu vídeo na pasta '{INPUT_DIR}' e renomeie para 'video_entrada.mp4'")
     else:
         # Obter configurações
-        origem, destino, voz, motor = obter_configuracao_usuario()
-        
-        if origem is None:
+        res = obter_configuracao_usuario()
+        if res[0] is None:
             print("\n👋 Saindo...")
             exit()
+            
+        origem, destino, voz, motor, modo = res
         
         # Executar pipeline completa
         sucesso = executar_pipeline_completa(
@@ -923,7 +997,8 @@ if __name__ == "__main__":
             idioma_origem=origem,
             idioma_destino=destino,
             idioma_voz=voz,
-            motor_tts=motor
+            motor_tts=motor,
+            modo_encoding=modo
         )
         
         if sucesso:
