@@ -7,6 +7,7 @@
 import os
 import sys
 import subprocess
+import time
 from pathlib import Path
 
 # Detecção precoce do ffmpeg para evitar problemas de PATH no Windows
@@ -535,6 +536,8 @@ def sintetizar_segmento_audio(texto, motor, config):
         
         # Limpeza básica para MMS
         texto_limpo = "".join([c for c in texto if c.isalnum() or c in " ,.?!"])
+        if not texto_limpo.strip(): return None, None
+        
         inputs = tokenizer(texto_limpo, return_tensors="pt").to(device)
         
         with torch.no_grad():
@@ -553,6 +556,38 @@ def sintetizar_segmento_audio(texto, motor, config):
         return np.array(wav), 24000
 
     return None, None
+
+def sintetizar_batch_mms(textos, config):
+    """
+    Sintetiza múltiplos textos em um único lote (batch) para MMS-TTS.
+    """
+    model = config["model"]
+    tokenizer = config["tokenizer"]
+    device = config["device"]
+    
+    # Limpeza e filtragem
+    textos_limpos = [" ".join(t.split()) for t in textos]
+    textos_limpos = ["".join([c for c in t if c.isalnum() or c in " ,.?!"]) for t in textos_limpos]
+    
+    if not textos_limpos: return []
+    
+    # MMS (VITS) não suporta batching nativo da mesma forma que LLMs 
+    # (ele processa sequencialmente dentro do modelo se passarmos uma lista sem padding customizado)
+    # No entanto, podemos otimizar o overhead de GPU chamando em sequência ou usando batches pequenos.
+    # Por agora, faremos a iteração otimizada.
+    resultados = []
+    
+    with torch.no_grad():
+        for texto in textos_limpos:
+            if not texto.strip():
+                resultados.append((None, None))
+                continue
+            inputs = tokenizer(texto, return_tensors="pt").to(device)
+            output = model(**inputs).waveform
+            audio_np = output.cpu().numpy().squeeze()
+            resultados.append((audio_np, model.config.sampling_rate))
+            
+    return resultados
 
 def dublar_com_ajuste_video(caminho_video, segmentos, idioma_voz, saida_video, motor_tts="mms", modo_encoding="rapido"):
     """
@@ -623,196 +658,217 @@ def dublar_com_ajuste_video(caminho_video, segmentos, idioma_voz, saida_video, m
         traceback.print_exc()
         return False
 
+    video_original = None
     clips_finais = []
+    arquivos_temp_audio = []
     
     try:
-        video_original = VideoFileClip(caminho_video)
-        fps_original = video_original.fps  # Capturar fps do vídeo original
-        print(f"   FPS do vídeo original: {fps_original}")
-    except Exception as e:
-        print(f"✗ Erro ao abrir vídeo original: {e}")
-        return False
+        # Abrir vídeo original uma única vez
+        try:
+            video_original = VideoFileClip(caminho_video)
+            fps_original = video_original.fps
+            print(f"   FPS do vídeo original: {fps_original}")
+        except Exception as e:
+            print(f"✗ Erro ao abrir vídeo original: {e}")
+            return False
+            
+        print(f"   Processando {len(segmentos)} segmentos...")
         
-    print(f"   Processando {len(segmentos)} segmentos...")
-    
-    # Processar cada segmento
-    clips_finais = []
-    tempo_acumulado = 0.0
-    novos_segmentos_legenda = []
-
-    for i, seg in enumerate(segmentos):
-        texto = seg["text"]
-        start_t = seg["start"]
-        end_t = seg["end"]
+        # 2. Síntese de Áudio (Batch para MMS, Sequencial para Coqui)
+        print(f"   🔊 Sintetizando {len(segmentos)} segmentos de áudio...")
+        audios_sintetizados = []
         
-        # Síntese
-        audio_data, sr = sintetizar_segmento_audio(texto, motor_tts, config)
-        
-        if audio_data is None:
-            duracao_audio = 0.5 
-            audio_clip = None
+        if motor_tts == "mms":
+            textos_batch = [seg["text"] for seg in segmentos]
+            audios_sintetizados = sintetizar_batch_mms(textos_batch, config)
         else:
-            temp_wav = os.path.join(OUTPUT_DIR, f"temp_seg_{i}.wav")
-            import soundfile as sf
-            sf.write(temp_wav, audio_data, int(sr)) # Use sr from sintetizar_segmento_audio
-            audio_clip = AudioFileClip(temp_wav)
-            duracao_audio = audio_clip.duration
+            for seg in segmentos:
+                audio_data, sr = sintetizar_segmento_audio(seg["text"], motor_tts, config)
+                audios_sintetizados.append((audio_data, sr))
+
+        # 3. Processamento de Clips de Vídeo e Sincronização
+        print(f"   🎬 Preparando clips de vídeo e sincronizando...")
+        
+        novos_segmentos_legenda = []
+        tempo_acumulado = 0.0
+        import soundfile as sf
+        
+        for i, seg in enumerate(segmentos):
+            audio_data, sr = audios_sintetizados[i]
+            texto = seg["text"]
+            start_t = seg["start"]
+            end_t = seg["end"]
             
-        if start_t >= video_original.duration:
-            break
-        end_t = min(end_t, video_original.duration)
-        
-        duracao_video_orig = end_t - start_t
-        if duracao_video_orig <= 0.1: continue
-        
-        video_clip = video_original.subclipped(start_t, end_t)
-        
-        if audio_clip:
-            ratio = duracao_video_orig / duracao_audio
-            ratio = max(0.1, min(ratio, 10.0)) 
+            if start_t >= video_original.duration:
+                break
+                
+            end_t = min(end_t, video_original.duration)
+            duracao_video_orig = end_t - start_t
+            if duracao_video_orig <= 0.1: continue
+
+            video_clip = video_original.subclipped(start_t, end_t)
+            duracao_final_clip = duracao_video_orig
             
-            if abs(ratio - 1.0) > 0.05:
-                original_fps = video_clip.fps
-                # Usar time_transform para ajustar velocidade no MoviePy 2.x
-                video_clip = video_clip.time_transform(lambda t: t * ratio)
-                # Preservar fps após transformação
-                if original_fps and not video_clip.fps:
-                    video_clip.fps = original_fps
-                # Calcular a nova duração após transformação (time_transform não preserva duration)
-                duracao_final_clip = duracao_video_orig / ratio
+            if audio_data is not None:
+                temp_wav = os.path.join(OUTPUT_DIR, f"temp_batch_seg_{i}.wav")
+                try:
+                    # Adicionar padding de silêncio (0.2s) para evitar erros de leitura além do fim
+                    import numpy as np
+                    padding_samples = int(sr * 0.2)
+                    audio_padded = np.pad(audio_data, (0, padding_samples), mode='constant')
+
+                    sf.write(temp_wav, audio_padded, int(sr))
+                    arquivos_temp_audio.append(temp_wav)
+                    audio_clip = AudioFileClip(temp_wav)
+                    
+                    # Duração REAL (sem padding) para cálculo de speedup
+                    duracao_audio_original = len(audio_data) / sr
+
+                    ratio = duracao_video_orig / duracao_audio_original
+                    ratio = max(0.1, min(ratio, 10.0)) 
+                    
+                    if abs(ratio - 1.0) > 0.05:
+                        video_clip = video_clip.time_transform(lambda t: t * ratio)
+                        duracao_final_clip = duracao_video_orig / ratio
+                    else:
+                        duracao_final_clip = duracao_audio_original
+
+                    # Cortar o audio clip para a duração útil
+                    audio_clip = audio_clip.with_duration(duracao_final_clip)
+                    
+                    video_clip = video_clip.with_audio(audio_clip)
+
+                    # --- DEBUG ÁUDIO ---
+                    if len(audio_data) > 0:
+                        peak = np.max(np.abs(audio_data))
+                        print(f"   📊 Segmento {i} Peak Amplitude: {peak:.4f} (Type: {audio_data.dtype})", flush=True)
+                        if peak < 0.001:
+                            print(f"   ⚠️ ALERTA: Áudio do segmento {i} parece SILENCIOSO!", flush=True)
+                    
+                    if video_clip.audio is None:
+                        print(f"   ⚠️ ALERTA: Segmento {i} ficou SEM áudio após with_audio()!", flush=True)
+                    # -------------------
+
+                    # Forçar duração exata do vídeo para bater com o áudio útil
+                    video_clip = video_clip.with_duration(duracao_final_clip)
+                except Exception as e_audio:
+                    print(f"   ⚠️ Erro ao processar áudio do segmento {i}: {e_audio}")
+                    video_clip = video_clip.without_audio()
             else:
-                duracao_final_clip = duracao_video_orig
+                video_clip = video_clip.without_audio()
+                
+            video_clip = video_clip.with_fps(fps_original).with_duration(duracao_final_clip)
+            clips_finais.append(video_clip)
             
-            video_clip = video_clip.with_audio(audio_clip)
-        else:
-            video_clip = video_clip.without_audio()
-            duracao_final_clip = duracao_video_orig
-            
-        # Fallback: se ainda for None, usar duração original do segmento
-        if duracao_final_clip is None:
-            duracao_final_clip = duracao_video_orig
-        
-        # Garantir que o clip tenha o fps correto do vídeo original
-        if not video_clip.fps or video_clip.fps != fps_original:
-            video_clip = video_clip.with_fps(fps_original)
-        
-        # Garantir que o clip tenha duração definida explicitamente (MoviePy 2.x)
-        video_clip = video_clip.with_duration(duracao_final_clip)
-        
-        clips_finais.append(video_clip)
-        
-        # Guardar novo timestamp para legenda
-        novos_segmentos_legenda.append({
-            "start": tempo_acumulado,
-            "end": tempo_acumulado + duracao_final_clip,
-            "text": texto
-        })
-        tempo_acumulado += duracao_final_clip
-        
-        if (i+1) % 10 == 0:
-            print(f"   Seg {i+1}/{len(segmentos)} processado.")
+            novos_segmentos_legenda.append({
+                "start": tempo_acumulado,
+                "end": tempo_acumulado + duracao_final_clip,
+                "text": texto
+            })
+            tempo_acumulado += duracao_final_clip
+            if (i+1) % 10 == 0: print(f"   Seg {i+1}/{len(segmentos)} processado.")
 
-    print("   Concatenando clips e salvando (isso pode demorar)...")
-    try:
-        # Garantir que todos os clips tenham fps definido usando set_fps
-        clips_com_fps = []
-        for clip in clips_finais:
-            if not clip.fps or clip.fps is None:
-                clip = clip.set_fps(24)  # Usar set_fps method do MoviePy
-            clips_com_fps.append(clip)
+        if not clips_finais:
+            print("✗ Nenhum clip gerado para montagem.")
+            return False
+
+        print("   Concatenando clips e salvando...")
+        from moviepy import concatenate_videoclips
         
-        final_video = concatenate_videoclips(clips_com_fps, method="compose")
+        # Garantir FPS em todos os clips antes de concatenar
+        clips_validados = [c.with_fps(24) if not c.fps else c for c in clips_finais]
+        final_video = concatenate_videoclips(clips_validados, method="compose")
         
-        # Configurar encoding baseado no modo escolhido
-        import time
-        tempo_inicio_encoding = time.time()
-        
+        tempo_inicio_enc = time.time()
         if modo_encoding == "rapido":
-            # Modo RÁPIDO: GPU NVIDIA NVENC - muito mais rápido
+            # Modo RÁPIDO: GPU NVIDIA NVENC
             print(f"   🚀 Modo RÁPIDO: Usando GPU NVENC (h264_nvenc)")
             try:
                 final_video.write_videofile(
                     saida_video,
-                    codec="h264_nvenc",           # NVIDIA GPU encoder
+                    codec="h264_nvenc",
                     audio_codec="aac",
+                    audio_bitrate="192k",
+                    temp_audiofile="temp-audio.m4a",
+                    remove_temp=True,
                     fps=24,
-                    preset="p1",                  # Preset mais rápido do NVENC (p1-p7)
-                    ffmpeg_params=[
-                        "-rc", "vbr",             # Variable bitrate
-                        "-cq", "23",              # Qualidade constante (menor = melhor)
-                        "-b:v", "0",              # Bitrate automático
-                    ],
+                    preset="p1",
+                    ffmpeg_params=["-rc", "vbr", "-cq", "23", "-b:v", "0"],
                     logger="bar"
                 )
-            except Exception as nvenc_err:
-                print(f"   ⚠️ NVENC falhou ({nvenc_err}), usando CPU fallback...")
-                # Fallback para libx264 se NVENC não estiver disponível
+            except Exception as e_gpu:
+                print(f"   ⚠️ GPU NVENC falhou ou indisponível: {e_gpu}. Tentando fallback para CPU...")
                 final_video.write_videofile(
                     saida_video,
                     codec="libx264",
                     audio_codec="aac",
+                    audio_bitrate="192k",
+                    temp_audiofile="temp-audio.m4a",
+                    remove_temp=True,
                     fps=24,
                     preset="ultrafast",
                     threads=8,
                     logger="bar"
                 )
         else:
-            # Modo QUALIDADE: CPU libx264 com melhor compressão
-            print(f"   🎬 Modo QUALIDADE: Usando CPU libx264 (melhor compressão)")
+            # Modo QUALIDADE: CPU libx264
+            print(f"   🎬 Modo QUALIDADE: Usando CPU libx264")
             final_video.write_videofile(
-                saida_video,
-                codec="libx264",
-                audio_codec="aac",
-                fps=24,
-                preset="medium",              # Balanço entre velocidade e qualidade
-                threads=os.cpu_count() or 4,  # Usar todos os cores disponíveis
-                ffmpeg_params=[
-                    "-crf", "18",             # Qualidade alta (menor = melhor, 18-23 recomendado)
-                ],
+                saida_video, 
+                codec="libx264", 
+                audio_codec="aac", 
+                audio_bitrate="192k",
+                temp_audiofile="temp-audio.m4a",
+                remove_temp=True,
+                fps=24, 
+                preset="medium", 
+                threads=4, 
+                ffmpeg_params=["-crf", "18"], 
                 logger="bar"
             )
         
-        tempo_encoding = time.time() - tempo_inicio_encoding
-        print(f"   ⏱️ Tempo de encoding: {tempo_encoding:.1f}s")
+        print(f"   ⏱️ Tempo de encoding: {time.time() - tempo_inicio_enc:.1f}s")
         
-        # Salvar nova legenda sincronizada
         try:
             srt_final = segmentos_para_srt(novos_segmentos_legenda)
             nome_legenda_final = os.path.join(OUTPUT_DIR, "legenda_final_sincronizada.srt")
             with open(nome_legenda_final, "w", encoding="utf-8") as f:
                 f.write(srt_final)
             print(f"✓ Legenda final sincronizada salva em: {nome_legenda_final}")
-        except Exception as e_leg:
-            print(f"⚠️ Erro ao salvar legenda final: {e_leg}")
+        except: pass
         
-        import glob
-        for f in glob.glob(os.path.join(OUTPUT_DIR, "temp_seg_*.wav")):
-            try: os.remove(f)
-            except: pass
-        
-        # Fechar recursos para evitar WinError 6 no Windows
-        try:
-            final_video.close()
-        except:
-            pass
-        for clip in clips_finais:
-            try:
-                clip.close()
-            except:
-                pass
-            
         return True
+            
     except Exception as e:
         print(f"✗ Erro na montagem final: {e}")
         import traceback
         traceback.print_exc()
         return False
+        
     finally:
-        # Garantir fechamento do vídeo original para evitar WinError 6
-        try:
-            video_original.close()
-        except:
-            pass
+        print("   🧹 Limpando recursos...")
+        if 'final_video' in locals() and final_video:
+            try: final_video.close()
+            except: pass
+        for clip in clips_finais:
+            try:
+                if clip:
+                    if hasattr(clip, 'audio') and clip.audio:
+                        try: clip.audio.close()
+                        except: pass
+                    clip.close()
+            except: pass
+        if video_original:
+            try: video_original.close()
+            except: pass
+        if arquivos_temp_audio:
+            for f in arquivos_temp_audio:
+                for _ in range(5):
+                    try:
+                        if os.path.exists(f): os.remove(f)
+                        break
+                    except: time.sleep(0.2)
+
 
 # ============================================================================
 # ETAPA 5: REMONTAGEM DE VÍDEO COM NOVO ÁUDIO (ffmpeg)
