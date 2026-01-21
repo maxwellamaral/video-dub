@@ -53,18 +53,51 @@ video-dub/
 
 ## 📦 Instalação
 
+### 1. Instalar o uv (Gerenciador de Pacotes Python)
+
+O projeto usa o [uv](https://github.com/astral-sh/uv), um gerenciador de pacotes Python extremamente rápido escrito em Rust.
+
+**Windows (PowerShell):**
+```powershell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**Linux/macOS:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**Verificar instalação:**
+```bash
+uv --version
+```
+
+### 2. Clonar e Configurar o Projeto
+
 1. Clone o repositório e entre na pasta.
 2. Instale as dependências com `uv`:
-   ```powershell
+   ```bash
    uv sync
    ```
    _Nota: O projeto usa Python 3.11 e PyTorch com CUDA 12.4 configurados automaticamente._
+
+**O que o `uv sync` faz?**
+- Cria automaticamente um ambiente virtual em `.venv/`
+- Instala o Python 3.11 se necessário
+- Instala todas as dependências do `pyproject.toml`
+- Configura o PyTorch com suporte a CUDA 12.4
 
 ### 📥 Download de Modelos para Execução Offline (Recomendado)
 
 Para usar o projeto sem conexão à internet, baixe os modelos uma vez:
 
+**Windows:**
 ```powershell
+uv run python download_models.py
+```
+
+**Linux/macOS:**
+```bash
 uv run python download_models.py
 ```
 
@@ -76,7 +109,13 @@ Isso baixará ~3.4 GB de modelos de IA. Depois, o projeto funcionará completame
 
 ### 1. Preparação
 
-Coloque o vídeo que deseja dublar na pasta `input/` e renomeie para `video_entrada.mp4` (ou ajuste no menu).
+**Windows:**
+```powershell
+uv run python main_refactored.py
+```
+
+**Linux/macOS:**
+```basheo que deseja dublar na pasta `input/` e renomeie para `video_entrada.mp4` (ou ajuste no menu).
 
 ### 2. Execução
 
@@ -91,22 +130,29 @@ Siga o menu interativo:
 1. Escolha o motor de voz (MMS ou Coqui).
 2. Escolha o modo de encoding (Rápido/GPU ou Qualidade/CPU).
 
-O resultado será salvo na pasta `output/` como `video_dublado_{motor}.mp4`.
+**Windows (PowerShell):**
+```powershell
+.\run_app.ps1
+```
 
-### 3. Interface Web (Novo!)
+**Linux/macOS (Bash):**
+```bash
+chmod +x run_app.sh  # Primeira vez apenas
+./run_app.sh
+```
 
-Para uma experiência visual com logs em tempo real:
-
-1. Execute o script de inicialização (PowerShell):
-
-   ```powershell
-   .\run_app.ps1
-   ```
-
-   Isso abrirá duas janelas em background (Backend e Frontend).
+Isso iniciará o backend (FastAPI) e frontend (Vue.js) em segundo plano.
 
 2. Acesse no navegador:
    `http://localhost:5173`
+
+3. Na interface:
+   - Faça upload do vídeo.
+   - Escolha o Motor (MMS/Coqui).
+   - Acompanhe o progresso no terminal embutido.
+   - Baixe o vídeo final diretamente da página.
+
+**Logs:** Os logs são salvos em `logs/backend.log` e `logs/frontend.log`
 
 3. Na interface:
    - Faça upload do vídeo.
