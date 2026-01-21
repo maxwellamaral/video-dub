@@ -134,6 +134,28 @@ Os testes validam:
 - **Vídeo sem Áudio**: Use o modo "Qualidade" ou garanta que o FFmpeg esteja atualizado. O script força muxing de áudio `aac` para compatibilidade.
 - **Accessing time... Error**: Erro de ponto flutuante do MoviePy corrigido nesta versão via padding de áudio.
 
+## 📚 Citação
+
+Se você usar este projeto em sua pesquisa ou trabalho acadêmico, por favor cite:
+
+```bibtex
+@software{amaral2026videodub,
+  author       = {Maxwell Anderson Ielpo do Amaral},
+  title        = {Video Dubbing System: AI-Powered Automatic Video Dubbing with Voice Cloning},
+  year         = {2026},
+  publisher    = {GitHub},
+  version      = {0.1.0},
+  url          = {https://github.com/maxwellamaral/32-31-video-dub},
+  note         = {Sistema de dublagem automática de vídeos com IA utilizando Whisper, NLLB-200 e TTS}
+}
+```
+
+Ou consulte o arquivo [CITATION.bib](CITATION.bib).
+
+## 📄 Licença
+
+Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICENSE) para detalhes.
+
 ---
 
 _Desenvolvido com foco em automação e qualidade via Python._
