@@ -6,6 +6,12 @@ Depois, o projeto funcionará sem conexão.
 """
 
 import os
+import sys
+
+# Adicionar diretório raiz ao path para imports funcionarem
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from transformers import pipeline, VitsModel, AutoTokenizer
 from TTS.api import TTS
 import torch
@@ -81,7 +87,7 @@ def download_models():
         print("   📁 ~/.cache/huggingface/hub")
     
     print("\n💡 Agora você pode executar o projeto sem conexão à internet!")
-    print("   Use: uv run python main_refactored.py")
+    print("   Use: uv run python src/main.py")
 
 if __name__ == "__main__":
     download_models()

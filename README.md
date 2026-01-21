@@ -22,12 +22,13 @@ O sistema foi refatorado para seguir boas práticas de Engenharia de Software:
 
 ```
 video-dub/
-├── main_refactored.py       # Ponto de Entrada CLI (Entrypoint)
-├── download_models.py       # Script para download de modelos offline
-├── run_app.ps1             # Inicializador da interface web
+├── run_app.ps1             # Inicializador da interface web (Windows)
+├── run_app.sh              # Inicializador da interface web (Linux/macOS)
 ├── pyproject.toml          # Configuração do projeto e dependências (uv)
 ├── tests/                  # Testes Automatizados (pytest)
 └── src/                    # Código Fonte Modular
+    ├── main.py             # Ponto de Entrada CLI (Entrypoint)
+    ├── download_models.py  # Script para download de modelos offline
     ├── config.py           # Configurações Globais (Caminhos, GPU, Modo Offline)
     ├── pipeline.py         # Orquestrador Principal
     ├── utils.py            # Funções Auxiliares (FFmpeg helper, logs)
@@ -91,14 +92,8 @@ uv --version
 
 Para usar o projeto sem conexão à internet, baixe os modelos uma vez:
 
-**Windows:**
-```powershell
-uv run python download_models.py
-```
-
-**Linux/macOS:**
 ```bash
-uv run python download_models.py
+uv run python src/download_models.py
 ```
 
 Isso baixará ~3.4 GB de modelos de IA. Depois, o projeto funcionará completamente offline!
@@ -109,26 +104,26 @@ Isso baixará ~3.4 GB de modelos de IA. Depois, o projeto funcionará completame
 
 ### 1. Preparação
 
-**Windows:**
-```powershell
-uv run python main_refactored.py
-```
+Coloque o vídeo que deseja dublar na pasta `input/` e renomeie para `video_entrada.mp4` (ou ajuste no menu).
 
-**Linux/macOS:**
-```basheo que deseja dublar na pasta `input/` e renomeie para `video_entrada.mp4` (ou ajuste no menu).
-
-### 2. Execução
+### 2. Execução CLI
 
 Execute o arquivo principal:
 
-```powershell
-uv run python main_refactored.py
+```bash
+uv run python src/main.py
 ```
 
 Siga o menu interativo:
 
 1. Escolha o motor de voz (MMS ou Coqui).
 2. Escolha o modo de encoding (Rápido/GPU ou Qualidade/CPU).
+
+O resultado será salvo na pasta `output/` como `video_dublado_{motor}.mp4`.
+
+### 3. Interface Web (Novo!)
+
+Para uma experiência visual com logs em tempo real:
 
 **Windows (PowerShell):**
 ```powershell

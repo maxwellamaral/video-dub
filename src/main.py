@@ -1,6 +1,11 @@
 
 import os
 import sys
+
+# Adicionar diretório raiz ao path para imports funcionarem
+if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from src.config import *
 from src.pipeline import executar_pipeline
 

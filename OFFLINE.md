@@ -36,7 +36,7 @@ Após o download, o projeto funcionará **completamente offline**:
 
 ```powershell
 # Sem necessidade de internet!
-uv run python main_refactored.py
+uv run python src/main.py
 ```
 
 ## 🔄 Como Funciona
