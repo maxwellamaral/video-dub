@@ -5,10 +5,10 @@ Write-Host "==================================================" -ForegroundColor
 $CurrentDir = Get-Location
 
 Write-Host "[1/2] Iniciando Backend FastAPI (Porta 8000)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$CurrentDir'; & .\.venv\Scripts\Activate.ps1; uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000" -WindowStyle Minimized
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$CurrentDir'; & .\.venv\Scripts\Activate.ps1; uvicorn src.backend.app:app --reload --host 0.0.0.0 --port 8000" -WindowStyle Minimized
 
 Write-Host "[2/2] Iniciando Frontend Vue.js (Porta 5173)..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$CurrentDir\frontend'; npm run dev" -WindowStyle Minimized
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$CurrentDir\src\frontend'; npm run dev" -WindowStyle Minimized
 
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Green

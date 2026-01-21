@@ -48,6 +48,12 @@ def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz, 
     if os.path.exists(nome_saida):
         try: os.remove(nome_saida)
         except: pass
+    
+    # Limpeza de arquivos de legenda antigos
+    for arquivo in [LEGENDA_ORIGINAL, LEGENDA_TRADUZIDA, LEGENDA_FINAL]:
+        if os.path.exists(arquivo):
+            try: os.remove(arquivo)
+            except: pass
 
     # 1. Extração de Áudio e Referência
     log("1. Extraindo áudio original...")
@@ -66,9 +72,17 @@ def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz, 
         log("❌ Nenhum diálogo detectado ou falha na transcrição.")
         return False
     
+    # Salvar legenda original
+    with open(LEGENDA_ORIGINAL, "w", encoding="utf-8") as f:
+        f.write(segmentos_para_srt(segmentos))
+    
     # 3. Tradução
     log(f"3. Traduzindo para {idioma_destino} (NLLB)...")
     seg_traduzidos = traduzir_segmentos(segmentos, idioma_origem, idioma_destino, log_callback=log)
+    
+    # Salvar legenda traduzida
+    with open(LEGENDA_TRADUZIDA, "w", encoding="utf-8") as f:
+        f.write(segmentos_para_srt(seg_traduzidos))
     
     # 4. Síntese TTS
     log(f"4. Sintetizando Voz ({motor_tts})...")

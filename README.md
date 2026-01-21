@@ -22,26 +22,34 @@ O sistema foi refatorado para seguir boas práticas de Engenharia de Software:
 
 ```
 video-dub/
-├── main_refactored.py       # Ponto de Entrada (Entrypoint)
-├── requirements.txt         # Dependências do Python
-├── tests/                   # Testes Automatizados (pytest)
-└── src/                     # Código Fonte Modular
-    ├── config.py            # Configurações Globais (Caminhos, GPU, Modelos)
-    ├── pipeline.py          # Orquestrador Principal
-    ├── utils.py             # Funções Auxiliares (FFmpeg helper, logs)
-    └── services/            # Serviços Especializados
-        ├── audio.py         # Extração de Áudio e Transcrição (Whisper)
-        ├── translation.py   # Tradução Neural (NLLB)
-        ├── tts.py           # Síntese de Voz (Wrapper para MMS/Coqui)
-        └── video.py         # Sincronização e Renderização (MoviePy)
+├── main_refactored.py       # Ponto de Entrada CLI (Entrypoint)
+├── download_models.py       # Script para download de modelos offline
+├── run_app.ps1             # Inicializador da interface web
+├── pyproject.toml          # Configuração do projeto e dependências (uv)
+├── tests/                  # Testes Automatizados (pytest)
+└── src/                    # Código Fonte Modular
+    ├── config.py           # Configurações Globais (Caminhos, GPU, Modo Offline)
+    ├── pipeline.py         # Orquestrador Principal
+    ├── utils.py            # Funções Auxiliares (FFmpeg helper, logs)
+    ├── services/           # Serviços Especializados de IA
+    │   ├── audio.py        # Extração de Áudio e Transcrição (Whisper)
+    │   ├── translation.py  # Tradução Neural (NLLB)
+    │   ├── tts.py          # Síntese de Voz (MMS/Coqui)
+    │   └── video.py        # Sincronização e Renderização (MoviePy)
+    ├── backend/            # API FastAPI para interface web
+    │   └── app.py          # Endpoints e WebSocket para progresso
+    └── frontend/           # Interface Vue.js
+        ├── src/            # Componentes Vue
+        └── package.json    # Dependências do frontend
 ```
 
 ## 📋 Pré-requisitos
 
-- **Python**: 3.10 ou superior.
-- **FFmpeg**: Instalado e acessível no PATH (o script tenta detectar automaticamente).
-- **GPU NVIDIA** (Opcional, mas recomendado): Para transcrição Whisper e codec NVENC.
-- **CUDA Toolkit**: Compatível com a versão do PyTorch instalada.
+- **Python**: 3.11 (gerenciado pelo uv)
+- **FFmpeg**: Instalado e acessível no PATH (o script tenta detectar automaticamente)
+- **GPU NVIDIA** (Opcional, mas recomendado): Para transcrição Whisper e codec NVENC
+- **CUDA Toolkit**: 12.4 (configurado automaticamente com PyTorch)
+- **Node.js**: Para executar a interface web (opcional)
 
 ## 📦 Instalação
 
