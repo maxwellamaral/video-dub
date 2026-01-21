@@ -5,6 +5,7 @@ import time
 import numpy as np
 import soundfile as sf
 from moviepy import VideoFileClip, AudioFileClip, concatenate_videoclips
+from moviepy.video.fx.MultiplySpeed import MultiplySpeed
 from proglog import ProgressBarLogger
 from src.config import OUTPUT_DIR
 
@@ -12,21 +13,28 @@ class MyLogger(ProgressBarLogger):
     def __init__(self, custom_callback=None):
         super().__init__()
         self.custom_callback = custom_callback
-        self.last_update = 0
+        self.last_percentage = -1
+        self.current_bar = None
 
     def bars_callback(self, bar, attr, value, old_value=None):
-        # Throttle updates to avoid spamming WebSocket
-        if self.custom_callback and (value - self.last_update > self.bars[bar]['total'] * 0.01):
+        # Reportar progresso em tempo real
+        if self.custom_callback and bar in self.bars:
             total = self.bars[bar]['total']
             if total > 0:
                 percentage = int((value / total) * 100)
-                self.custom_callback(f"PROGRESS: {percentage}")
-                self.last_update = value
+                # Atualizar apenas quando mudar de porcentagem ou a cada 5%
+                if percentage != self.last_percentage and (percentage % 5 == 0 or percentage == 100):
+                    bar_name = "Áudio" if bar == 't' else "Vídeo"
+                    self.custom_callback(f"   ▸ {bar_name}: {percentage}%")
+                    self.last_percentage = percentage
 
     def callback(self, **changes):
         # Capture text messages from MoviePy
         if self.custom_callback and 'message' in changes:
-            self.custom_callback(f"   [FFmpeg] {changes['message']}")
+            msg = changes['message']
+            # Filtrar mensagens redundantes
+            if 'MoviePy' in msg and 'Done' not in msg:
+                self.custom_callback(f"   [FFmpeg] {msg}")
 
 class VideoEditor:
     """
@@ -116,7 +124,7 @@ class VideoEditor:
                 
                 if abs(ratio - 1.0) > 0.05:
                     # Ajustar velocidade do vídeo
-                    clip = clip.time_transform(lambda t: t * ratio)
+                    clip = clip.with_effects([MultiplySpeed(ratio)])
                     final_dur = original_dur / ratio # Novo tempo = Dist / Vel
                 else:
                     final_dur = audio_dur
