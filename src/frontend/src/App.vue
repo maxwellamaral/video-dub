@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, watch } from 'vue'
 import axios from 'axios'
 
 const file = ref(null)
@@ -28,6 +28,15 @@ const WS_URL = 'ws://localhost:8000/ws'
 onMounted(() => {
   connectWebSocket()
 })
+
+// Auto-scroll quando logs mudam
+watch(logs, () => {
+  nextTick(() => {
+    if (logContainer.value) {
+      logContainer.value.scrollTop = logContainer.value.scrollHeight
+    }
+  })
+}, { deep: true })
 
 const connectWebSocket = () => {
   try {

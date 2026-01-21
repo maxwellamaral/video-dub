@@ -71,31 +71,25 @@ async def process_video(
     if not os.path.exists(video_path):
         return {"error": "Vídeo não encontrado via upload."}
 
-    # Wrapper para enviar logs via WebSocket (async bridge)
-    def progress_callback(msg):
-        # Precisamos rodar o broadcast async dentro da thread sync
-        # Usamos run_coroutine_threadsafe se houver loop, ou apenas print por enquanto se complexo
-        # Simplificação: O ideal é BackgroundTasks do FastAPI ou Celery.
-        # Aqui, vamos fazer um hack simples: usar um loop global ou queue.
-        print(f"[WS LOG] {msg}")
-        asyncio.run(manager.broadcast(msg))
-
-    # Executar em thread separada para não bloquear
-    # Nota: Em produção, usar Celery ou RQ.
-    # O asyncio.to_thread é perfeito para isso no Python 3.9+
-    
+    # Obter o event loop atual
     loop = asyncio.get_event_loop()
+    
+    # Callback seguro para enviar mensagens via WebSocket
+    def progress_callback(msg):
+        print(f"[LOG] {msg}")
+        # Agendar broadcast no event loop de forma thread-safe
+        asyncio.run_coroutine_threadsafe(manager.broadcast(msg), loop)
     
     # Função wrapper para rodar no executor
     def run_pipeline():
-         return executar_pipeline(
+        return executar_pipeline(
             caminho_video=video_path,
             idioma_origem="eng_Latn",
             idioma_destino="por_Latn",
             idioma_voz="por",
             motor_tts=motor,
             modo_encoding=encoding,
-            progress_callback=lambda msg: asyncio.run_coroutine_threadsafe(manager.broadcast(msg), loop)
+            progress_callback=progress_callback
         )
 
     # Executa blocking code em outra thread
