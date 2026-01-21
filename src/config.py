@@ -9,6 +9,18 @@ import torch
 # Defina o dispositivo: "cuda:0" para GPU ou "cpu"
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
+# ============================================================================
+# MODO OFFLINE - Desabilita verificação de internet para modelos Hugging Face
+# ============================================================================
+# Quando True, força o uso de modelos apenas do cache local
+# Execute 'python download_models.py' primeiro para baixar os modelos
+OFFLINE_MODE = True
+
+# Configurar variáveis de ambiente para modo offline
+if OFFLINE_MODE:
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
 # Caminhos de Diretórios
 BASE_DIR = os.getcwd() # Ou definir um path fixo se preferir
 INPUT_DIR = os.path.join(BASE_DIR, "input")

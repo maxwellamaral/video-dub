@@ -41,8 +41,10 @@ class TTSEngine:
             if self.motor == "mms":
                 modelo_nome = f"facebook/mms-tts-{self.idioma}"
                 self._log(f"   Carregando MMS-TTS: {modelo_nome}")
+                
                 self.config["tokenizer"] = AutoTokenizer.from_pretrained(modelo_nome)
                 self.config["model"] = VitsModel.from_pretrained(modelo_nome).to(DEVICE)
+                
                 self.sample_rate = self.config["model"].config.sampling_rate
                 
             elif self.motor == "coqui":

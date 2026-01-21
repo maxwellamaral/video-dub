@@ -46,16 +46,23 @@ video-dub/
 ## 📦 Instalação
 
 1. Clone o repositório e entre na pasta.
-2. Crie um ambiente virtual (recomendado):
+2. Instale as dependências com `uv`:
    ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\activate
+   uv sync
    ```
-3. Instale as dependências:
-   ```powershell
-   pip install -r requirements.txt
-   ```
-   _Nota: Para suporte a GPU, certifique-se de instalar a versão correta do `torch` com CUDA._
+   _Nota: O projeto usa Python 3.11 e PyTorch com CUDA 12.4 configurados automaticamente._
+
+### 📥 Download de Modelos para Execução Offline (Recomendado)
+
+Para usar o projeto sem conexão à internet, baixe os modelos uma vez:
+
+```powershell
+uv run python download_models.py
+```
+
+Isso baixará ~3.4 GB de modelos de IA. Depois, o projeto funcionará completamente offline!
+
+📖 **Mais detalhes:** Veja [OFFLINE.md](OFFLINE.md)
 
 ## ▶️ Como Usar
 
@@ -68,7 +75,7 @@ Coloque o vídeo que deseja dublar na pasta `input/` e renomeie para `video_entr
 Execute o arquivo principal:
 
 ```powershell
-python main_refactored.py
+uv run python main_refactored.py
 ```
 
 Siga o menu interativo:

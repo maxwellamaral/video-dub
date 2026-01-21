@@ -110,6 +110,7 @@ def transcrever_audio_whisper(caminho_audio, modelo="openai/whisper-base", log_c
     
     try:
         if log_callback: log_callback("   Carregando modelo Whisper...")
+        
         pipe = pipeline(
             task="automatic-speech-recognition",
             model=modelo,
