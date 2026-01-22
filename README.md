@@ -7,6 +7,7 @@ Sistema automatizado para dublagem de vídeos utilizando Inteligência Artificia
 ## 🚀 Features
 
 - **Arquitetura Modular**: Código organizado em serviços independentes (`src/services/`) para fácil manutenção.
+- **Download de Vídeos do YouTube**: Baixe vídeos diretamente do YouTube para processamento (novo!).
 - **Múltiplos Motores TTS**:
   - **MMS-TTS (Facebook)**: Rápido, leve e totalmente offline.
   - **Coqui XTTS v2**: Alta qualidade com clonagem de voz (Voice Cloning) a partir do vídeo original.
@@ -59,16 +60,19 @@ video-dub/
 O projeto usa o [uv](https://github.com/astral-sh/uv), um gerenciador de pacotes Python extremamente rápido escrito em Rust.
 
 **Windows (PowerShell):**
+
 ```powershell
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 **Linux/macOS:**
+
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 **Verificar instalação:**
+
 ```bash
 uv --version
 ```
@@ -83,6 +87,7 @@ uv --version
    _Nota: O projeto usa Python 3.11 e PyTorch com CUDA 12.4 configurados automaticamente._
 
 **O que o `uv sync` faz?**
+
 - Cria automaticamente um ambiente virtual em `.venv/`
 - Instala o Python 3.11 se necessário
 - Instala todas as dependências do `pyproject.toml`
@@ -126,11 +131,13 @@ O resultado será salvo na pasta `output/` como `video_dublado_{motor}.mp4`.
 Para uma experiência visual com logs em tempo real:
 
 **Windows (PowerShell):**
+
 ```powershell
 .\run_app.ps1
 ```
 
 **Linux/macOS (Bash):**
+
 ```bash
 chmod +x run_app.sh  # Primeira vez apenas
 ./run_app.sh
@@ -154,6 +161,45 @@ Isso iniciará o backend (FastAPI) e frontend (Vue.js) em segundo plano.
    - Escolha o Motor (MMS/Coqui).
    - Acompanhe o progresso no terminal embutido.
    - Baixe o vídeo final diretamente da página.
+
+### 4. Download de Vídeos do YouTube (Novo!)
+
+A interface web agora suporta download direto de vídeos do YouTube para processamento.
+
+**Como usar:**
+
+1. Na interface web (`http://localhost:5173`), selecione a aba **"YouTube URL"**.
+
+2. Cole a URL do vídeo do YouTube:
+   - Formatos aceitos:
+     - `https://www.youtube.com/watch?v=VIDEO_ID`
+     - `https://youtu.be/VIDEO_ID`
+     - `https://www.youtube.com/embed/VIDEO_ID`
+
+3. Clique em **"Baixar do YouTube"**.
+
+4. Aguarde o download (progresso será exibido no terminal).
+
+5. Após o download, selecione o motor TTS e modo de encoding.
+
+6. Clique em **"Iniciar Dublagem"** para processar o vídeo.
+
+**Exemplos de URLs válidas:**
+
+```
+https://www.youtube.com/watch?v=jNQXAC9IVRw
+https://youtu.be/dQw4w9WgXcQ
+```
+
+**Limitações:**
+
+- Apenas vídeos públicos podem ser baixados.
+- Vídeos com restrições geográficas podem falhar.
+- Vídeos privados ou removidos não são acessíveis.
+- A qualidade máxima de download é 1080p.
+
+> [!WARNING]
+> **Direitos Autorais**: Certifique-se de ter permissão para baixar e processar o vídeo. Esta ferramenta destina-se apenas a fins educacionais e de pesquisa. Respeite as leis de direitos autorais aplicáveis.
 
 ## 🧪 Testes
 

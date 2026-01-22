@@ -10,6 +10,7 @@ from typing import List
 # Importar lógica do pipeline
 from src.pipeline import executar_pipeline
 from src.config import OUTPUT_DIR, VIDEO_SAIDA_BASE
+from src.services.youtube import baixar_video_youtube, validar_url_youtube
 
 app = FastAPI()
 
@@ -60,6 +61,50 @@ async def upload_video(file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     return {"filename": file.filename, "path": file_path}
+
+@app.post("/download-youtube")
+async def download_youtube(url: str = Form(...)):
+    """
+    Endpoint para baixar vídeo do YouTube.
+    
+    Args:
+        url: URL do vídeo do YouTube
+        
+    Returns:
+        JSON com status e caminho do arquivo
+    """
+    # Validar URL
+    if not validar_url_youtube(url):
+        return {"status": "error", "message": "URL do YouTube inválida"}
+    
+    file_path = os.path.join(UPLOAD_DIR, "video_entrada.mp4")
+    
+    # Remover arquivo anterior se existir
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except:
+            pass
+    
+    # Obter o event loop atual
+    loop = asyncio.get_event_loop()
+    
+    # Callback para enviar progresso via WebSocket
+    def progress_callback(msg):
+        print(f"[YOUTUBE] {msg}")
+        asyncio.run_coroutine_threadsafe(manager.broadcast(msg), loop)
+    
+    # Função wrapper para rodar no executor
+    def run_download():
+        return baixar_video_youtube(url, file_path, log_callback=progress_callback)
+    
+    # Executa blocking code em outra thread
+    success = await asyncio.to_thread(run_download)
+    
+    if success:
+        return {"status": "success", "path": file_path, "message": "Vídeo baixado com sucesso!"}
+    else:
+        return {"status": "error", "message": "Falha ao baixar o vídeo do YouTube"}
 
 @app.post("/process")
 async def process_video(

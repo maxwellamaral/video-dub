@@ -6,11 +6,16 @@ const file = ref(null)
 const motor = ref('mms')
 const encoding = ref('rapido')
 const logs = ref([])
-const status = ref('idle') // idle, uploading, processing, done, error
+const status = ref('idle') // idle, uploading, downloading, processing, done, error
 const progress = ref(0)
 const videoUrl = ref(null)
 const logContainer = ref(null)
 const ws = ref(null)
+
+// YouTube support
+const inputMode = ref('upload') // 'upload' or 'youtube'
+const youtubeUrl = ref('')
+const isValidYoutubeUrl = ref(false)
 
 // Stepper Logic
 const currentStep = ref(0)
@@ -88,23 +93,71 @@ const handleFileChange = (e) => {
   }
 }
 
-const startProcess = async () => {
-  if (!file.value) return alert('Selecione um vídeo primeiro!')
+const validateYoutubeUrl = () => {
+  const youtubeRegex = /(https?:\/\/)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)\/(watch\?v=|embed\/|v\/|.+\?v=)?([^&=%\?]{11})/
+  isValidYoutubeUrl.value = youtubeRegex.test(youtubeUrl.value)
+}
 
-  status.value = 'uploading'
+const downloadFromYoutube = async () => {
+  if (!isValidYoutubeUrl.value) {
+    alert('Por favor, insira uma URL válida do YouTube!')
+    return
+  }
+
+  status.value = 'downloading'
+  logs.value = []
+  currentStep.value = 0
+  videoUrl.value = null
+  processLog('🎥 Iniciando download do YouTube...')
+
+  const formData = new FormData()
+  formData.append('url', youtubeUrl.value)
+
+  try {
+    const res = await axios.post(`${BACKEND_URL}/download-youtube`, formData)
+
+    if (res.data.status === 'success') {
+      processLog('✅ Download do YouTube concluído!')
+      status.value = 'idle'
+      // Marcar como se tivéssemos feito upload
+      file.value = { name: 'Video do YouTube' }
+    } else {
+      status.value = 'error'
+      processLog(`❌ Erro: ${res.data.message}`)
+    }
+  } catch (e) {
+    status.value = 'error'
+    processLog(`❌ Erro ao baixar do YouTube: ${e.message}`)
+  }
+}
+
+const startProcess = async () => {
+  if (!file.value && inputMode.value === 'upload') {
+    return alert('Selecione um vídeo primeiro!')
+  }
+  if (inputMode.value === 'youtube' && !isValidYoutubeUrl.value) {
+    return alert('Por favor, baixe um vídeo do YouTube primeiro!')
+  }
+
   logs.value = []
   currentStep.value = 0
   videoUrl.value = null
   processLog('🚀 Processo iniciado...')
 
-  const formData = new FormData()
-  formData.append('file', file.value)
-
   try {
-    processLog('📤 Fazendo upload do arquivo...')
-    const uploadRes = await axios.post(`${BACKEND_URL}/upload`, formData)
-    if (uploadRes.data.path) {
-      processLog('✅ Upload concluído!')
+    // Apenas faz upload se for modo upload (YouTube já foi baixado)
+    if (inputMode.value === 'upload') {
+      status.value = 'uploading'
+      const formData = new FormData()
+      formData.append('file', file.value)
+
+      processLog('📤 Fazendo upload do arquivo...')
+      const uploadRes = await axios.post(`${BACKEND_URL}/upload`, formData)
+      if (uploadRes.data.path) {
+        processLog('✅ Upload concluído!')
+      }
+    } else {
+      processLog('✅ Usando vídeo do YouTube já baixado!')
     }
 
     status.value = 'processing'
@@ -146,7 +199,21 @@ const startProcess = async () => {
       <div class="control-panel card">
         <h2>🛠️ Configuração</h2>
 
+        <!-- Input Mode Selector -->
         <div class="form-group">
+          <label>Fonte do Vídeo:</label>
+          <div class="mode-selector">
+            <button @click="inputMode = 'upload'" :class="{ active: inputMode === 'upload' }" class="mode-btn">
+              📁 Upload Local
+            </button>
+            <button @click="inputMode = 'youtube'" :class="{ active: inputMode === 'youtube' }" class="mode-btn">
+              🎥 YouTube URL
+            </button>
+          </div>
+        </div>
+
+        <!-- Upload Mode -->
+        <div class="form-group" v-if="inputMode === 'upload'">
           <label>Arquivo de Vídeo:</label>
           <div class="file-drop-area" :class="{ 'has-file': file }">
             <input type="file" @change="handleFileChange" accept="video/*" />
@@ -157,6 +224,19 @@ const startProcess = async () => {
               <span>📂 Clique ou arraste aqui</span>
             </div>
           </div>
+        </div>
+
+        <!-- YouTube Mode -->
+        <div class="form-group" v-if="inputMode === 'youtube'">
+          <label>URL do YouTube:</label>
+          <input type="text" v-model="youtubeUrl" @input="validateYoutubeUrl"
+            placeholder="https://www.youtube.com/watch?v=..." class="youtube-input"
+            :class="{ valid: isValidYoutubeUrl && youtubeUrl, invalid: !isValidYoutubeUrl && youtubeUrl }" />
+          <button @click="downloadFromYoutube" :disabled="!isValidYoutubeUrl || status === 'downloading'"
+            class="btn-youtube">
+            <span v-if="status === 'downloading'">⬇️ Baixando...</span>
+            <span v-else>⬇️ Baixar do YouTube</span>
+          </button>
         </div>
 
         <div class="form-group">
@@ -175,9 +255,11 @@ const startProcess = async () => {
           </select>
         </div>
 
-        <button @click="startProcess" :disabled="status === 'uploading' || status === 'processing'" class="btn-primary"
+        <button @click="startProcess"
+          :disabled="status === 'uploading' || status === 'downloading' || status === 'processing'" class="btn-primary"
           :class="status">
           <span v-if="status === 'uploading'">📤 Enviando...</span>
+          <span v-else-if="status === 'downloading'">⬇️ Baixando...</span>
           <span v-else-if="status === 'processing'">⚙️ Processando...</span>
           <span v-else>▶️ Iniciar Dublagem</span>
         </button>
@@ -563,6 +645,86 @@ select:focus {
 
 .btn-download:hover {
   transform: scale(1.05);
+}
+
+/* YouTube Input Styles */
+.mode-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.mode-btn {
+  padding: 0.8rem;
+  border: 2px solid var(--text-muted);
+  background: var(--bg);
+  color: var(--text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.mode-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.mode-btn.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(122, 162, 247, 0.3);
+}
+
+.youtube-input {
+  width: 100%;
+  padding: 0.8rem;
+  background: var(--bg);
+  border: 2px solid var(--text-muted);
+  border-radius: 8px;
+  color: white;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.3s ease;
+  margin-bottom: 1rem;
+}
+
+.youtube-input:focus {
+  border-color: var(--primary);
+}
+
+.youtube-input.valid {
+  border-color: var(--green);
+}
+
+.youtube-input.invalid {
+  border-color: var(--red);
+}
+
+.btn-youtube {
+  width: 100%;
+  padding: 0.8rem;
+  background: linear-gradient(135deg, #ff0000 0%, #cc0000 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 1.5rem;
+}
+
+.btn-youtube:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 0, 0, 0.4);
+}
+
+.btn-youtube:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Mobile */

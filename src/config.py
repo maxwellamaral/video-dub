@@ -25,10 +25,12 @@ if OFFLINE_MODE:
 BASE_DIR = os.getcwd() # Ou definir um path fixo se preferir
 INPUT_DIR = os.path.join(BASE_DIR, "input")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+YOUTUBE_DOWNLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 
 # Garantir existência
 os.makedirs(INPUT_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(YOUTUBE_DOWNLOAD_DIR, exist_ok=True)
 
 # Arquivos Padrão
 VIDEO_ENTRADA = os.path.join(INPUT_DIR, "video_entrada.mp4")
