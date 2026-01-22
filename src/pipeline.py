@@ -49,8 +49,8 @@ def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz, 
         try: os.remove(nome_saida)
         except: pass
     
-    # Limpeza de arquivos de legenda antigos
-    for arquivo in [LEGENDA_ORIGINAL, LEGENDA_TRADUZIDA, LEGENDA_FINAL]:
+    # Limpeza de arquivos de legenda e áudio antigos
+    for arquivo in [AUDIO_EXTRAIDO, LEGENDA_ORIGINAL, LEGENDA_TRADUZIDA, LEGENDA_FINAL]:
         if os.path.exists(arquivo):
             try: os.remove(arquivo)
             except: pass

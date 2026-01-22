@@ -70,8 +70,8 @@ def extrair_audio(caminho_video, caminho_audio_saida, log_callback=None):
 
     try:
         cmd = [
-            FFMPEG_EXE, "-i", caminho_video,
-            "-q:a", "9", "-n",
+            FFMPEG_EXE, "-y", "-i", caminho_video,
+            "-q:a", "9",
             caminho_audio_saida
         ]
         # output silenciado para limpeza, exceto erros
