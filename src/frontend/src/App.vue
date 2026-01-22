@@ -229,7 +229,7 @@ const startProcess = async () => {
         <!-- YouTube Mode -->
         <div class="form-group" v-if="inputMode === 'youtube'">
           <label>URL do YouTube:</label>
-          <input type="text" v-model="youtubeUrl" @input="validateYoutubeUrl"
+          <input type="text" v-model="youtubeUrl" @input="validateYoutubeUrl" style="width: 90%;"
             placeholder="https://www.youtube.com/watch?v=..." class="youtube-input"
             :class="{ valid: isValidYoutubeUrl && youtubeUrl, invalid: !isValidYoutubeUrl && youtubeUrl }" />
           <button @click="downloadFromYoutube" :disabled="!isValidYoutubeUrl || status === 'downloading'"
