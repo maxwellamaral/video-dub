@@ -15,9 +15,15 @@ def menu():
     print("="*50)
     print("1. MMS-TTS (Rápido, Offline)")
     print("2. Coqui XTTS (Clonagem de Voz, Qualidade)")
+    print("3. Qwen3-TTS (Alta Qualidade, Latência Ultra-Baixa)")
     
-    escolha = input("\nEscolha o motor (1 ou 2): ").strip()
-    motor = "coqui" if escolha == "2" else "mms"
+    escolha = input("\nEscolha o motor (1, 2 ou 3): ").strip()
+    if escolha == "2":
+        motor = "coqui"
+    elif escolha == "3":
+        motor = "qwen3"
+    else:
+        motor = "mms"
     
     print("\nModo de Encoding:")
     print("1. Rápido (GPU NVENC) - Recomendado")

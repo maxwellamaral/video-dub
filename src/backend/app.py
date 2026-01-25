@@ -109,7 +109,10 @@ async def download_youtube(url: str = Form(...)):
 @app.post("/process")
 async def process_video(
     motor: str = Form(...), 
-    encoding: str = Form(...)
+    encoding: str = Form(...),
+    qwen3_mode: str = Form("custom"),
+    qwen3_speaker: str = Form("vivian"),
+    qwen3_instruct: str = Form("")
 ):
     video_path = os.path.join(UPLOAD_DIR, "video_entrada.mp4")
     
@@ -134,6 +137,9 @@ async def process_video(
             idioma_voz="por",
             motor_tts=motor,
             modo_encoding=encoding,
+            qwen3_mode=qwen3_mode,
+            qwen3_speaker=qwen3_speaker,
+            qwen3_instruct=qwen3_instruct,
             progress_callback=progress_callback
         )
 
@@ -152,6 +158,12 @@ async def download_video(motor: str):
     if os.path.exists(path):
         return FileResponse(path, media_type="video/mp4", filename=filename)
     return {"error": "File not found"}
+
+@app.get("/api/qwen3/speakers")
+async def get_qwen3_speakers():
+    """Retorna lista de speakers disponíveis para Qwen3-TTS CustomVoice."""
+    from src.config import QWEN3_SPEAKERS
+    return {"speakers": QWEN3_SPEAKERS}
 
 if __name__ == "__main__":
     import uvicorn

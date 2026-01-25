@@ -74,6 +74,41 @@ def download_models():
     except Exception as e:
         print(f"   ✗ Erro ao baixar Coqui: {e}")
     
+    # 5. Qwen3-TTS (Todos os modelos)
+    print("\n5️⃣ Baixando Qwen3-TTS (Todos os modelos para suportar todas as modalidades)...")
+    try:
+        from qwen_tts import Qwen3TTSModel
+        import torch
+        
+        # Lista de modelos a baixar
+        models_to_download = [
+            ("Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice", "CustomVoice (Vozes pré-definidas)"),
+            ("Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign", "VoiceDesign (Design livre)"),
+            ("Qwen/Qwen3-TTS-12Hz-1.7B-Base", "Base (Clonagem de voz)")
+        ]
+        
+        for model_name, description in models_to_download:
+            print(f"\n   📥 {description}:")
+            print(f"      Modelo: {model_name}")
+            try:
+                # Baixar modelo
+                Qwen3TTSModel.from_pretrained(
+                    model_name,
+                    device_map="cpu",  # Usar CPU para download
+                    dtype=torch.float32,
+                    trust_remote_code=True
+                )
+                print(f"      ✓ {model_name.split('/')[-1]} baixado!")
+            except Exception as e:
+                print(f"      ⚠️ Erro ao baixar {model_name}: {e}")
+        
+        print("\n   ✅ Download dos modelos Qwen3-TTS concluído!")
+        
+    except ImportError:
+        print("   ⚠️ Pacote 'qwen-tts' não instalado. Execute: uv add qwen-tts")
+    except Exception as e:
+        print(f"   ✗ Erro ao baixar Qwen3-TTS: {e}")
+    
     # Informações sobre cache
     print("\n" + "="*60)
     print("✅ DOWNLOAD CONCLUÍDO!")

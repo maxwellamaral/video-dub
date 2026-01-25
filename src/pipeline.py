@@ -9,28 +9,26 @@ from src.services.tts import TTSEngine
 from src.services.video import VideoEditor
 from src.utils import segmentos_para_srt
 
-def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz, motor_tts, modo_encoding, progress_callback=None):
+def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz, 
+                     motor_tts, modo_encoding, progress_callback=None,
+                     qwen3_mode="custom", qwen3_speaker="vivian", qwen3_instruct=""):
     """
-    Orquestra o processo completo de dublagem do vídeo.
-
-    Fluxo:
-    1. Extração de Áudio e Referência (se Coqui).
-    2. Transcrição (Whisper).
-    3. Tradução (NLLB).
-    4. Síntese de Voz (TTS).
-    5. Edição e Sincronização de Vídeo (VideoEditor).
+    Pipeline principal de dublagem de vídeo.
 
     Args:
-        caminho_video (str): Path do vídeo original.
-        idioma_origem (str): ex: 'eng_Latn'.
-        idioma_destino (str): ex: 'por_Latn'.
-        idioma_voz (str): ex: 'por'.
-        motor_tts (str): 'mms' ou 'coqui'.
-        modo_encoding (str): 'rapido' ou 'qualidade'.
-        progress_callback (callable, optional): Função que aceita string para logs.
+        caminho_video (str): Caminho do vídeo de entrada.
+        idioma_origem (str): Código do idioma original (ex: 'eng_Latn').
+        idioma_destino (str): Código do idioma de destino (ex: 'por_Latn').
+        idioma_voz (str): Código do idioma da voz gerada (ex: 'por').
+        motor_tts (str): Motor de TTS a usar ('mms', 'coqui', 'qwen3').
+        modo_encoding (str): Modo de codificação ('rapido' ou 'qualidade').
+        progress_callback (callable, optional): Função para notificar progresso.
+        qwen3_mode (str): Modalidade Qwen3 ('custom', 'design', 'clone').
+        qwen3_speaker (str): Speaker para CustomVoice (ex: 'Vivian').
+        qwen3_instruct (str): Instrução de voz para CustomVoice/VoiceDesign.
 
     Returns:
-        bool: True se o vídeo foi gerado com sucesso.
+        bool: True se o pipeline foi executado com sucesso, False caso contrário.
     """
     def log(msg):
         print(msg)
@@ -90,7 +88,10 @@ def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz, 
         motor=motor_tts, 
         idioma=idioma_voz, 
         ref_wav=AUDIO_REFERENCIA,
-        log_callback=log
+        log_callback=log,
+        qwen3_mode=qwen3_mode,
+        qwen3_speaker=qwen3_speaker,
+        qwen3_instruct=qwen3_instruct
     )
     
     textos = [s["text"] for s in seg_traduzidos]

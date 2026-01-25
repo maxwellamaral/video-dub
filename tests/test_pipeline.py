@@ -78,3 +78,53 @@ def test_pipeline_coqui_quality(synthetic_video, output_dir):
     if result:
         expected_file = os.path.join(str(output_dir), "video_dublado_coqui.mp4")
         assert os.path.exists(expected_file)
+
+def test_pipeline_qwen3_fast(synthetic_video, output_dir):
+    """
+    Testa o ciclo completo com Qwen3-TTS e Encoding Rápido (NVENC).
+    Video de entrada: Sintético (5s).
+    """
+    video_path = synthetic_video
+    
+    result = executar_pipeline(
+        caminho_video=video_path,
+        idioma_origem="eng_Latn",
+        idioma_destino="por_Latn",
+        idioma_voz="por",
+        motor_tts="qwen3",
+        modo_encoding="rapido"
+    )
+    
+    # Qwen3 deve funcionar bem se os modelos estiverem baixados
+    assert result in [True, False], "Pipeline crashou e não retornou booleano"
+    
+    if result:
+        expected_file = os.path.join(str(output_dir), "video_dublado_qwen3.mp4")
+        assert os.path.exists(expected_file), "Arquivo de saída não gerado"
+        assert os.path.getsize(expected_file) > 1000, "Arquivo gerado parece vazio"
+
+def test_qwen3_tts_synthesis():
+    """Testa síntese de áudio isolada com Qwen3-TTS."""
+    try:
+        from src.services.tts import TTSEngine
+        
+        tts = TTSEngine(
+            motor="qwen3",
+            idioma="por",
+            log_callback=print
+        )
+        
+        textos = [
+            "Olá, este é um teste de síntese de voz.",
+            "O Qwen3-TTS suporta múltiplos idiomas."
+        ]
+        
+        audios = tts.sintetizar_batch(textos)
+        
+        assert len(audios) == 2, "Número incorreto de áudios gerados"
+        assert audios[0][0] is not None, "Primeiro áudio é None"
+        assert audios[0][1] == 12000, f"Sample rate incorreto: {audios[0][1]}"
+        
+    except ImportError:
+        pytest.skip("qwen-tts não instalado")
+

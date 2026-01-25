@@ -17,6 +17,12 @@ const inputMode = ref('upload') // 'upload' or 'youtube'
 const youtubeUrl = ref('')
 const isValidYoutubeUrl = ref(false)
 
+// Qwen3-TTS advanced controls
+const qwen3Mode = ref('custom')
+const qwen3Speaker = ref('vivian')
+const qwen3Instruct = ref('')
+const qwen3Speakers = ref({})
+
 // Stepper Logic
 const currentStep = ref(0)
 const steps = [
@@ -30,8 +36,16 @@ const steps = [
 const BACKEND_URL = 'http://localhost:8000'
 const WS_URL = 'ws://localhost:8000/ws'
 
-onMounted(() => {
+onMounted(async () => {
   connectWebSocket()
+
+  // Fetch Qwen3 speakers list
+  try {
+    const res = await axios.get(`${BACKEND_URL}/api/qwen3/speakers`)
+    qwen3Speakers.value = res.data.speakers
+  } catch (e) {
+    console.error('Failed to load Qwen3 speakers', e)
+  }
 })
 
 // Auto-scroll quando logs mudam
@@ -168,6 +182,13 @@ const startProcess = async () => {
     params.append('motor', motor.value)
     params.append('encoding', encoding.value)
 
+    // Add Qwen3 params if motor is qwen3
+    if (motor.value === 'qwen3') {
+      params.append('qwen3_mode', qwen3Mode.value)
+      params.append('qwen3_speaker', qwen3Speaker.value)
+      params.append('qwen3_instruct', qwen3Instruct.value)
+    }
+
     const res = await axios.post(`${BACKEND_URL}/process`, params)
 
     if (res.data.status === 'success') {
@@ -244,7 +265,39 @@ const startProcess = async () => {
           <select v-model="motor">
             <option value="mms">MMS-TTS (Rápido/Offline)</option>
             <option value="coqui">Coqui XTTS (Clonagem de Voz)</option>
+            <option value="qwen3">Qwen3-TTS (Alta Qualidade/Baixa Latência)</option>
           </select>
+        </div>
+
+        <!-- Qwen3-TTS Advanced Controls -->
+        <div v-if="motor === 'qwen3'" class="qwen3-controls">
+          <div class="form-group">
+            <label>🎭 Modalidade:</label>
+            <select v-model="qwen3Mode">
+              <option value="custom">Custom Voice (Vozes Pré-definidas)</option>
+              <option value="design">Voice Design (Design Livre)</option>
+              <option value="clone">Voice Clone (Clonagem)</option>
+            </select>
+          </div>
+
+          <div class="form-group" v-if="qwen3Mode === 'custom'">
+            <label>🎤 Speaker:</label>
+            <select v-model="qwen3Speaker">
+              <option v-for="(desc, name) in qwen3Speakers" :key="name" :value="name">
+                {{ name }} - {{ desc }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group" v-if="qwen3Mode === 'design' || qwen3Mode === 'custom'">
+            <label>📝 Instrução de Voz (opcional):</label>
+            <textarea v-model="qwen3Instruct" placeholder="Ex: Voz alegre e enérgica, tom profissional, etc." rows="2"
+              class="voice-instruct-input">
+            </textarea>
+            <small class="hint">
+              Descreva características desejadas: tom, emoção, ritmo, estilo
+            </small>
+          </div>
         </div>
 
         <div class="form-group">
@@ -725,6 +778,40 @@ select:focus {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Qwen3-TTS Controls */
+.qwen3-controls {
+  background: rgba(122, 162, 247, 0.05);
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(122, 162, 247, 0.2);
+  margin-top: 1rem;
+}
+
+.voice-instruct-input {
+  width: 100%;
+  background: var(--bg);
+  color: white;
+  border: 1px solid var(--text-muted);
+  padding: 0.8rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+
+.voice-instruct-input:focus {
+  border-color: var(--primary);
+}
+
+.hint {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-style: italic;
 }
 
 /* Mobile */

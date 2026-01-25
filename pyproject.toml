@@ -15,12 +15,14 @@ dependencies = [
     "torch==2.6.0",
     "torchaudio==2.6.0",
     "torchvision==0.21.0",
-    "transformers==4.40.0",
+    "transformers>=4.40.0",
     
     # Text-to-Speech
     "tts==0.22.0",
     "kokoro-onnx==0.2.2",
     "onnxruntime-gpu==1.23.2",
+    "qwen-tts>=0.0.5",
+    # "flash-attn>=2.0.0",  # Opcional: requer torch como build dependency, código tem fallback
     
     # Análise de dados e computação científica
     "numpy==1.26.4",
