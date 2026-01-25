@@ -18,15 +18,15 @@ QWEN3_MODEL_NAME = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
 # Speakers disponíveis para Qwen3-CustomVoice (APENAS os suportados pelo modelo)
 # Fonte: Modelo Qwen3-TTS-12Hz-1.7B-CustomVoice
 QWEN3_SPEAKERS = {
-    "vivian": "� Feminino, voz suave e expressiva",
-    "ryan": "� Masculino, voz profissional e clara",
-    "aiden": "� Masculino, voz articulada",
-    "dylan": "� Masculino, voz jovem e casual",
-    "eric": "� Masculino, voz madura",
-    "serena": "� Feminino, voz serena e calma",
-    "ono_anna": "� Feminino, voz doce",
-    "sohee": "� Feminino, voz gentil",
-    "uncle_fu": "� Masculino, voz mais velha"
+    "vivian": "feminino, voz suave e expressiva",
+    "ryan": "masculino, voz profissional e clara",
+    "aiden": "masculino, voz articulada",
+    "dylan": "masculino, voz jovem e casual",
+    "eric": "masculino, voz madura",
+    "serena": "feminino, voz serena e calma",
+    "ono_anna": "feminino, voz doce",
+    "sohee": "feminino, voz gentil",
+    "uncle_fu": "masculino, voz mais velha"
 }
 
 # ============================================================================
