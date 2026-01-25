@@ -48,19 +48,20 @@ def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz,
         except: pass
     
     # Limpeza de arquivos de legenda e áudio antigos
-    for arquivo in [AUDIO_EXTRAIDO, LEGENDA_ORIGINAL, LEGENDA_TRADUZIDA, LEGENDA_FINAL]:
+    for arquivo in [AUDIO_REFERENCIA, AUDIO_EXTRAIDO, LEGENDA_ORIGINAL, LEGENDA_TRADUZIDA, LEGENDA_FINAL]:
         if os.path.exists(arquivo):
             try: os.remove(arquivo)
             except: pass
 
-    # 1. Extração de Áudio e Referência
+    # 1. Extração de Áudio
     log("1. Extraindo áudio original...")
     if not extrair_audio(caminho_video, AUDIO_EXTRAIDO, log_callback=log): 
         log("❌ Falha na extração de áudio.")
         return False
     
-    if motor_tts == "coqui":
-        log("1.1. Extraindo referência de voz (Clonagem)...")
+    # Extração de referência de voz para Voice Clone (Qwen3)
+    if motor_tts == "qwen3" and qwen3_mode == "clone":
+        log("1.1. Extraindo referência de voz (Voice Clone)...")
         extrair_referencia_voz(caminho_video, AUDIO_REFERENCIA, log_callback=log)
         
     # 2. Transcrição

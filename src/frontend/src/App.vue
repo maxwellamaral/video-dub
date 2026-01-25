@@ -262,10 +262,9 @@ const startProcess = async () => {
 
         <div class="form-group">
           <label>Motor TTS:</label>
-          <select v-model="motor">
-            <option value="mms">MMS-TTS (Rápido/Offline)</option>
-            <option value="coqui">Coqui XTTS (Clonagem de Voz)</option>
-            <option value="qwen3">Qwen3-TTS (Alta Qualidade/Baixa Latência)</option>
+          <select v-model="motor" class="input-field">
+            <option value="mms">MMS (Multilíngue Rápido)</option>
+            <option value="qwen3">Qwen3-TTS (Alta Qualidade)</option>
           </select>
         </div>
 

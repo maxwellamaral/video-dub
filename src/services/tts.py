@@ -11,7 +11,6 @@ class TTSEngine:
 
     Suporta múltiplos backends:
     - 'mms': Meta Massively Multilingual Speech (Facebook) - Rápido, offline.
-    - 'coqui': Coqui XTTS v2 - Qualidade alta, suporte a clonagem de voz.
     - 'qwen3': Qwen3-TTS CustomVoice - Alta qualidade, latência ultra-baixa, controle expressivo.
     """
     def __init__(self, motor="mms", idioma="por", ref_wav=None, log_callback=None,
@@ -20,9 +19,9 @@ class TTSEngine:
         Inicializa o motor TTS.
 
         Args:
-            motor (str): 'mms', 'coqui', ou 'qwen3'.
+            motor (str): 'mms' ou 'qwen3'.
             idioma (str): Código do idioma (ex: 'por', 'por_Latn').
-            ref_wav (str, optional): Caminho para áudio de referência (Coqui/Qwen3-Clone).
+            ref_wav (str, optional): Caminho para áudio de referência (Qwen3-Clone).
             log_callback (callable, optional): Função para logar mensagens.
             qwen3_mode (str): Modalidade Qwen3: 'custom', 'design', ou 'clone'.
             qwen3_speaker (str): Speaker para modo CustomVoice (ex: 'Vivian', 'Ryan').
@@ -58,24 +57,7 @@ class TTSEngine:
                 
                 self.sample_rate = self.config["model"].config.sampling_rate
                 
-            elif self.motor == "coqui":
-                self._log("   Carregando Coqui XTTS v2...")
-                os.environ["COQUI_TOS_AGREED"] = "1"
-                from TTS.api import TTS
-                
-                # Patch para torch.load weights_only (PyTorch 2.6+ fix)
-                original_load = torch.load
-                def patched_load(*args, **kwargs):
-                    kwargs['weights_only'] = False
-                    return original_load(*args, **kwargs)
-                torch.load = patched_load
-                
-                self.config["tts"] = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(DEVICE)
-                torch.load = original_load # Restore
-                
-                self.sample_rate = 24000
-                self._log("   ✓ Coqui Loaded.")
-                
+
             elif self.motor == "qwen3":
                 self._log(f"   Carregando Qwen3-TTS ({self.qwen3_mode} mode)...")
                 from src.config import QWEN3_DEFAULT_SPEAKER
@@ -118,7 +100,8 @@ class TTSEngine:
                             **load_kwargs
                         )
                     
-                    self.sample_rate = 24000 if self.qwen3_mode != "custom" else 12000
+                    # Todos os modelos Qwen3-TTS-12Hz geram áudio a 12kHz
+                    self.sample_rate = 12000
                     self.speaker = self.qwen3_speaker if self.qwen3_mode == "custom" else None
                     
                     # Mapear idioma para formato Qwen3
@@ -203,19 +186,7 @@ class TTSEngine:
                     audio = output.cpu().numpy().squeeze()
                     resultados.append((audio, self.sample_rate))
                     
-        elif self.motor == "coqui":
-            tts = self.config["tts"]
-            lang = "pt" if self.idioma == "por_Latn" or self.idioma == "por" else "en"
-            
-            for i, texto in enumerate(textos):
-                if (i+1) % 5 == 0: self._log(f"   ... Sintetizando {i+1}/{len(textos)}")
-                try:
-                    wav = tts.tts(text=texto, speaker_wav=self.ref_wav, language=lang)
-                    resultados.append((np.array(wav), self.sample_rate))
-                except Exception as e:
-                    self._log(f"   ⚠️ Erro Coqui no segmento {i}: {e}")
-                    resultados.append((None, None))
-                    
+
         elif self.motor == "qwen3":
             model = self.config["model"]
             
