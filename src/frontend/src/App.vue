@@ -300,6 +300,7 @@ const startProcess = async () => {
         </div>
 
         <div class="form-group">
+          <br>
           <label>Modo de Encoding:</label>
           <select v-model="encoding">
             <option value="rapido">Rápido (GPU NVENC)</option>
@@ -799,6 +800,7 @@ select:focus {
   font-family: inherit;
   resize: vertical;
   outline: none;
+  box-sizing: border-box;
 }
 
 .voice-instruct-input:focus {
