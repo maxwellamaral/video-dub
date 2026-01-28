@@ -12,6 +12,11 @@ class TTSEngine:
     Suporta múltiplos backends:
     - 'mms': Meta Massively Multilingual Speech (Facebook) - Rápido, offline.
     - 'qwen3': Qwen3-TTS CustomVoice - Alta qualidade, latência ultra-baixa, controle expressivo.
+    
+    Integração com Emoções:
+    Para Qwen3-TTS, as emoções detectadas pelo SenseVoice são automaticamente
+    convertidas em instruções de voz, permitindo síntese expressiva que reflete
+    o tom emocional do áudio original.
     """
     def __init__(self, motor="mms", idioma="por", ref_wav=None, log_callback=None,
                  qwen3_mode="custom", qwen3_speaker="vivian", qwen3_instruct=""):
@@ -157,14 +162,26 @@ class TTSEngine:
         Para MMS, tenta processar em lote (embora a implementação atual seja iterativa
         para evitar OOM, a interface permite otimização futura).
         
+            Para Qwen3, suporta instruções emocionais por segmento quando textos
+            é uma lista de dicts com campos 'text' e 'emotion_instruction'.
+        
         Args:
-            textos (list): Lista de strings para sintetizar.
+                textos (list): Lista de strings para sintetizar OU
+                              Lista de dicts com 'text' e opcionalmente 'emotion_instruction'.
 
         Returns:
             list: Lista de tuplas (audio_numpy_array, sample_rate).
                   Retorna (None, None) em caso de falha no segmento.
         """
-        self._log(f"   🔊 Sintetizando {len(textos)} segmentos ({self.motor})...")
+            # Normalizar entrada: aceitar strings ou dicts
+            textos_normalizados = []
+            for item in textos:
+                if isinstance(item, dict):
+                    textos_normalizados.append(item)
+                else:
+                    textos_normalizados.append({"text": str(item), "emotion_instruction": ""})
+        
+            self._log(f"   🔊 Sintetizando {len(textos_normalizados)} segmentos ({self.motor})...")
         resultados = []
         
         if self.motor == "mms":
@@ -172,10 +189,11 @@ class TTSEngine:
             tokenizer = self.config["tokenizer"]
             
             with torch.no_grad():
-                for i, texto in enumerate(textos):
+                    for i, item in enumerate(textos_normalizados):
                     # Logs de progresso
                     if (i+1) % 5 == 0: self._log(f"   ... Sintetizando {i+1}/{len(textos)}")
 
+                        texto = item["text"]
                     clean = "".join([c for c in texto if c.isalnum() or c in " ,.?!"])
                     if not clean.strip():
                         resultados.append((None, None))
@@ -190,15 +208,22 @@ class TTSEngine:
         elif self.motor == "qwen3":
             model = self.config["model"]
             
-            for i, texto in enumerate(textos):
+                for i, item in enumerate(textos_normalizados):
                 if (i+1) % 5 == 0: self._log(f"   ... Sintetizando {i+1}/{len(textos)}")
                 
                 try:
+                        texto = item["text"]
+                        emotion_instruction = item.get("emotion_instruction", "")
+                    
                     # Limpeza básica
                     clean = texto.strip()
                     if not clean:
                         resultados.append((None, None))
                         continue
+                    
+                        # Determinar instrução final: priorizar emoção detectada sobre instrução base
+                        # Se houver instrução de emoção, ela substitui a instrução base do qwen3_instruct
+                        instruct_final = emotion_instruction if emotion_instruction else self.qwen3_instruct
                     
                     # Síntese baseada na modalidade
                     if self.qwen3_mode == "custom":
@@ -207,12 +232,15 @@ class TTSEngine:
                             text=clean,
                             language=self.qwen3_language,
                             speaker=self.speaker,
-                            instruct=self.qwen3_instruct if self.qwen3_instruct else ""
+                                instruct=instruct_final
                         )
                         
                     elif self.qwen3_mode == "design":
                         # VoiceDesign: cria voz baseada em descrição em linguagem natural
-                        instruct = self.qwen3_instruct or "Voz clara e natural, tom neutro e profissional"
+                            # Combinar instrução base com emoção se disponível
+                            base_instruct = self.qwen3_instruct or "Voz clara e natural, tom neutro e profissional"
+                            instruct = emotion_instruction if emotion_instruction else base_instruct
+                        
                         wavs, sr = model.generate_voice_design(
                             text=clean,
                             language=self.qwen3_language,

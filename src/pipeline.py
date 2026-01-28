@@ -3,11 +3,11 @@ import os
 import shutil
 import time
 from src.config import *
-from src.services.audio import extrair_referencia_voz, extrair_audio, transcrever_audio_whisper
+from src.services.audio import extrair_referencia_voz, extrair_audio, transcrever_audio_whisper, transcrever_com_emocao
 from src.services.translation import traduzir_segmentos
 from src.services.tts import TTSEngine
 from src.services.video import VideoEditor
-from src.utils import segmentos_para_srt
+from src.utils import segmentos_para_srt, segmentos_para_srt_com_emocao, extrair_estatisticas_emocoes
 
 def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz, 
                      motor_tts, modo_encoding, progress_callback=None,
@@ -65,23 +65,60 @@ def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz,
         extrair_referencia_voz(caminho_video, AUDIO_REFERENCIA, log_callback=log)
         
     # 2. Transcrição
-    log("2. Transcrevendo áudio (Whisper)...")
-    segmentos = transcrever_audio_whisper(AUDIO_EXTRAIDO, log_callback=log)
+        log("2. Transcrevendo áudio e analisando emoções...")
+    
+        # Usar transcrição com análise de emoções se habilitado
+        if ENABLE_EMOTION_ANALYSIS:
+            log("   Modo: Whisper + SenseVoice (Transcrição + Emoções)")
+            segmentos = transcrever_com_emocao(
+                AUDIO_EXTRAIDO,
+                modelo_whisper="openai/whisper-base",
+                modelo_sensevoice=SENSEVOICE_MODEL,
+                log_callback=log
+            )
+        else:
+            log("   Modo: Whisper apenas (Transcrição simples)")
+            segmentos = transcrever_audio_whisper(AUDIO_EXTRAIDO, log_callback=log)
+    
     if not segmentos: 
         log("❌ Nenhum diálogo detectado ou falha na transcrição.")
         return False
     
+        # Exibir estatísticas de emoções se disponíveis
+        if ENABLE_EMOTION_ANALYSIS and "emotion" in segmentos[0]:
+            stats = extrair_estatisticas_emocoes(segmentos)
+            log(f"   📊 Estatísticas de Emoções:")
+            log(f"      Total de segmentos: {stats['total']}")
+            log(f"      Emoção predominante: {stats['predominante']}")
+            for emocao, count in stats['emocoes'].items():
+                percentual = stats['distribuicao_percentual'][emocao]
+                log(f"      - {emocao}: {count} ({percentual:.1f}%)")
+    
     # Salvar legenda original
-    with open(LEGENDA_ORIGINAL, "w", encoding="utf-8") as f:
-        f.write(segmentos_para_srt(segmentos))
+        with open(LEGENDA_ORIGINAL, "w", encoding="utf-8") as f:
+            if ENABLE_EMOTION_ANALYSIS and INCLUDE_EMOTION_TAGS_IN_SUBTITLES:
+                f.write(segmentos_para_srt_com_emocao(segmentos, incluir_tag_emocao=True))
+            else:
+                f.write(segmentos_para_srt(segmentos))
     
     # 3. Tradução
     log(f"3. Traduzindo para {idioma_destino} (NLLB)...")
     seg_traduzidos = traduzir_segmentos(segmentos, idioma_origem, idioma_destino, log_callback=log)
     
+        # Preservar emoções após tradução
+        if ENABLE_EMOTION_ANALYSIS and "emotion" in segmentos[0]:
+            for i, seg_trad in enumerate(seg_traduzidos):
+                if i < len(segmentos):
+                    seg_trad["emotion"] = segmentos[i].get("emotion", "neutral")
+                    seg_trad["emotion_pt"] = segmentos[i].get("emotion_pt", "neutro")
+                    seg_trad["emotion_instruction"] = segmentos[i].get("emotion_instruction", "")
+    
     # Salvar legenda traduzida
-    with open(LEGENDA_TRADUZIDA, "w", encoding="utf-8") as f:
-        f.write(segmentos_para_srt(seg_traduzidos))
+        with open(LEGENDA_TRADUZIDA, "w", encoding="utf-8") as f:
+            if ENABLE_EMOTION_ANALYSIS and INCLUDE_EMOTION_TAGS_IN_SUBTITLES:
+                f.write(segmentos_para_srt_com_emocao(seg_traduzidos, incluir_tag_emocao=True))
+            else:
+                f.write(segmentos_para_srt(seg_traduzidos))
     
     # 4. Síntese TTS
     log(f"4. Sintetizando Voz ({motor_tts})...")
@@ -95,7 +132,18 @@ def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz,
         qwen3_instruct=qwen3_instruct
     )
     
-    textos = [s["text"] for s in seg_traduzidos]
+        # Preparar dados para síntese: incluir emoções se disponíveis
+        if ENABLE_EMOTION_ANALYSIS and "emotion_instruction" in seg_traduzidos[0]:
+            log("   🎭 Aplicando emoções detectadas ao TTS...")
+            textos = [
+                {
+                    "text": s["text"],
+                    "emotion_instruction": s.get("emotion_instruction", "")
+                }
+                for s in seg_traduzidos
+            ]
+        else:
+            textos = [s["text"] for s in seg_traduzidos]
     
     # Retorna lista de (audio_np, sample_rate)
     log(f"   Gerando áudio para {len(textos)} segmentos...")
@@ -116,7 +164,10 @@ def executar_pipeline(caminho_video, idioma_origem, idioma_destino, idioma_voz,
         if ok:
             # Salvar SRT final
             with open(LEGENDA_FINAL, "w", encoding="utf-8") as f:
-                f.write(segmentos_para_srt(legendas_sync))
+                    if ENABLE_EMOTION_ANALYSIS and INCLUDE_EMOTION_TAGS_IN_SUBTITLES:
+                        f.write(segmentos_para_srt_com_emocao(legendas_sync, incluir_tag_emocao=True))
+                    else:
+                        f.write(segmentos_para_srt(legendas_sync))
             log(f"✅ Pipeline concluída com sucesso!")
             
     except Exception as e:

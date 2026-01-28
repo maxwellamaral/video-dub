@@ -6,16 +6,46 @@ Sistema automatizado para dublagem de vídeos utilizando Inteligência Artificia
 
 ## 🚀 Features
 
-- **Arquitetura Modular**: Código organizado em serviços independentes (`src/services/`) para fácil manutenção.
+- **🎭 Análise de Emoções (NOVO!)**: Detecção automática de emoções com SenseVoice e síntese TTS expressiva com Qwen3.
 - **Download de Vídeos do YouTube**: Baixe vídeos diretamente do YouTube para processamento (novo!).
 - **Múltiplos Motores TTS**:
   - **MMS-TTS (Facebook)**: Rápido, leve e totalmente offline.
-  - **Coqui XTTS v2**: Alta qualidade com clonagem de voz (Voice Cloning) a partir do vídeo original.
+   - **Qwen3-TTS**: Alta qualidade com controle emocional e expressivo baseado em instruções naturais.
 - **Encoding Inteligente**:
   - **Modo Rápido**: Aceleração via GPU (`h264_nvenc`).
   - **Modo Qualidade**: Compressão superior via CPU (`libx264`) com correção automática de áudio.
 - **Resiliência**: Tratamento robusto de erros (WinError 6, falhas de I/O) e limpeza automática de recursos.
 - **Testes Automatizados**: Suíte completa (`pytest`) para validar o pipeline.
+
+## 🎭 Novidade: Dublagem com Emoções
+
+O sistema agora detecta **automaticamente as emoções** no áudio original usando **SenseVoiceSmall** e as aplica na dublagem para um resultado mais **natural e expressivo**!
+
+### Emoções Detectadas:
+- 😊 Feliz - 😢 Triste - 😠 Zangado - 😐 Neutro
+- 😨 Amedrontado - 🤢 Enojado - 😮 Surpreso
+
+### Como Funciona:
+```
+Áudio Original → Whisper (texto) + SenseVoice (emoções)
+                        → Tradução preservando emoções
+                        → Qwen3-TTS com instruções emocionais
+                        → Dublagem expressiva! 🎉
+```
+
+### Exemplo de Legendas Geradas:
+```srt
+1
+00:00:01,000 --> 00:00:03,500
+[FELIZ] Olá, como você está?
+
+2
+00:00:04,000 --> 00:00:07,200
+[TRISTE] Estou muito cansado hoje...
+```
+
+📖 **Documentação completa:** [docs/EMOTION_ANALYSIS.md](docs/EMOTION_ANALYSIS.md)  
+🚀 **Guia rápido:** [docs/EMOTION_QUICKSTART.md](docs/EMOTION_QUICKSTART.md)
 
 ## 🛠️ Arquitetura do Projeto
 
@@ -35,9 +65,11 @@ video-dub/
     ├── utils.py            # Funções Auxiliares (FFmpeg helper, logs)
     ├── services/           # Serviços Especializados de IA
     │   ├── audio.py        # Extração de Áudio e Transcrição (Whisper)
+    │   ├── emotion.py      # Análise de Emoções (SenseVoice) [NOVO!]
     │   ├── translation.py  # Tradução Neural (NLLB)
-    │   ├── tts.py          # Síntese de Voz (MMS/Coqui)
-    │   └── video.py        # Sincronização e Renderização (MoviePy)
+    │   ├── tts.py          # Síntese de Voz (MMS/Qwen3/Coqui)
+    │   ├── video.py        # Sincronização e Renderização (MoviePy)
+    │   └── youtube.py      # Download de vídeos do YouTube
     ├── backend/            # API FastAPI para interface web
     │   └── app.py          # Endpoints e WebSocket para progresso
     └── frontend/           # Interface Vue.js

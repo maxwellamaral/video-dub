@@ -15,7 +15,7 @@ dependencies = [
     "torch==2.6.0",
     "torchaudio==2.6.0",
     "torchvision==0.21.0",
-    "transformers>=4.40.0",
+        "transformers>=4.40.0",  # Inclui suporte para SenseVoice (emotion detection)
     
     # Text-to-Speech
     "kokoro-onnx==0.2.2",

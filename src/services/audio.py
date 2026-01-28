@@ -103,7 +103,74 @@ def transcrever_audio_whisper(caminho_audio, modelo="openai/whisper-base", log_c
 
     Returns:
         list: Lista de dicionários de segmentos processados (ver `_processar_chunks_whisper`).
+              Cada segmento contém: 'start', 'end', 'text'.
     """
+    def transcrever_com_emocao(caminho_audio, modelo_whisper="openai/whisper-base", 
+                              modelo_sensevoice="FunAudioLLM/SenseVoiceSmall", log_callback=None):
+        """
+        Transcreve áudio com detecção de emoções integrada.
+    
+        Pipeline combinado:
+        1. Transcrição de áudio com Whisper (texto + timestamps)
+        2. Análise de emoções com SenseVoice (emoção por segmento)
+        3. Enriquecimento de segmentos com dados emocionais
+    
+        Args:
+            caminho_audio (str): Path do arquivo de áudio (.wav).
+            modelo_whisper (str, optional): ID do modelo Whisper. Default: "openai/whisper-base".
+            modelo_sensevoice (str, optional): ID do modelo SenseVoice. Default: "FunAudioLLM/SenseVoiceSmall".
+            log_callback (callable, optional): Função para logar mensagens.
+    
+        Returns:
+            list: Lista de segmentos enriquecidos com campos:
+                  - 'start': tempo inicial (float)
+                  - 'end': tempo final (float)
+                  - 'text': texto transcrito (str)
+                  - 'emotion': código da emoção (str, ex: 'happy', 'sad')
+                  - 'emotion_pt': emoção em português (str, ex: 'feliz', 'triste')
+                  - 'emotion_instruction': instrução detalhada para TTS (str)
+        """
+        msg = "\n🎭 Pipeline: Transcrição + Análise de Emoções"
+        if log_callback: log_callback(msg)
+        else: print(msg)
+    
+        # Etapa 1: Transcrição com Whisper
+        segmentos = transcrever_audio_whisper(caminho_audio, modelo_whisper, log_callback)
+    
+        if not segmentos:
+            if log_callback: log_callback("   ⚠️ Nenhum segmento transcrito para analisar emoções")
+            else: print("   ⚠️ Nenhum segmento transcrito para analisar emoções")
+            return []
+    
+        # Etapa 2: Análise de Emoções com SenseVoice
+        try:
+            from src.services.emotion import EmotionAnalyzer
+        
+            analyzer = EmotionAnalyzer(modelo=modelo_sensevoice, log_callback=log_callback)
+            segmentos_com_emocao = analyzer.analisar_audio(caminho_audio, segmentos)
+        
+            msg_ok = f"✓ Pipeline concluído: {len(segmentos_com_emocao)} segmentos com emoções detectadas"
+            if log_callback: log_callback(msg_ok)
+            else: print(msg_ok)
+        
+            return segmentos_com_emocao
+        
+        except Exception as e:
+            err_msg = f"⚠️ Erro na análise de emoções: {e}. Retornando segmentos sem emoções."
+            if log_callback: log_callback(err_msg)
+            else: print(err_msg)
+        
+            # Fallback: retornar segmentos originais com emoção neutra
+            from src.services.emotion import EMOTION_INSTRUCTIONS
+            return [
+                {
+                    **seg, 
+                    "emotion": "neutral",
+                    "emotion_pt": "neutro",
+                    "emotion_instruction": EMOTION_INSTRUCTIONS.get("neutral", "")
+                }
+                for seg in segmentos
+            ]
     msg = f"\n🎙️  Transcrevendo áudio com Whisper ({modelo})..."
     if log_callback: log_callback(msg)
     else: print(msg)

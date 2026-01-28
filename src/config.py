@@ -30,6 +30,34 @@ QWEN3_SPEAKERS = {
 }
 
 # ============================================================================
+# ANÁLISE DE EMOÇÕES - SenseVoiceSmall
+# ============================================================================
+# Modelo para detecção de emoções em áudio
+# O SenseVoice detecta emoções durante a transcrição e as integra ao pipeline
+SENSEVOICE_MODEL = "FunAudioLLM/SenseVoiceSmall"
+
+# Habilitar/Desabilitar análise de emoções
+# Quando True, o pipeline usa SenseVoice para detectar emoções e aplicá-las ao TTS
+# Quando False, usa apenas transcrição simples com Whisper
+ENABLE_EMOTION_ANALYSIS = True
+
+# Incluir tags de emoção nas legendas
+# Formato: [FELIZ] Texto da legenda
+INCLUDE_EMOTION_TAGS_IN_SUBTITLES = True
+
+# Emoções suportadas pelo SenseVoice
+# Estas são detectadas automaticamente e mapeadas para instruções do Qwen3-TTS
+SUPPORTED_EMOTIONS = [
+    "neutral",   # neutro
+    "happy",     # feliz
+    "sad",       # triste
+    "angry",     # zangado
+    "fearful",   # amedrontado
+    "disgusted", # enojado
+    "surprised"  # surpreso
+]
+
+# ============================================================================
 # MODO OFFLINE - Desabilita verificação de internet para modelos Hugging Face
 # ============================================================================
 # Quando True, força o uso de modelos apenas do cache local
